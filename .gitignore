@@ -1,0 +1,25 @@
+# Dependencies and generated frontend bundles
+**/node_modules/
+**/dist/
+
+# Local versions created before repository publishing began
+/V1.0.0/
+/V1.0.1/
+/V1.0.2/
+
+# Electron packaging output and portable binaries
+**/release/
+**/*.exe
+**/*.blockmap
+
+# Local secrets and logs
+**/.env
+**/.env.*
+!**/.env.example
+**/*.log
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
