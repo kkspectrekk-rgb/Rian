@@ -11,6 +11,8 @@
   ![Platform](https://img.shields.io/badge/platform-Windows-0078D4?style=flat-square&logo=windows11&logoColor=white)
   ![Electron](https://img.shields.io/badge/Electron-34-47848F?style=flat-square&logo=electron&logoColor=white)
   ![React](https://img.shields.io/badge/React-18-20232A?style=flat-square&logo=react&logoColor=61DAFB)
+
+  [![Download Rain](https://img.shields.io/badge/Download-Rain%201.0.3-ffffff?style=for-the-badge&logo=github&logoColor=black)](https://github.com/kkspectrekk-rgb/Rian/releases/latest)
 </div>
 
 ---
@@ -49,6 +51,16 @@ Rain 不是网页播放器。它以独立 Windows 桌面程序运行，API 请�
 - 从本版本开始仅生成免安装便携版，不再生成 Setup 安装包。
 
 完整内容请查看 [更新日志 v1.0.3](./V1.0.3/更新日志v1.0.3.txt)。
+
+## 下载 Rain
+
+[**前往 GitHub Releases 下载 Rain 1.0.3 →**](https://github.com/kkspectrekk-rgb/Rian/releases/latest)
+
+在最新版发行页面的 **Assets** 区域选择 `Rain.1.0.3.exe`。这是 Windows x64 免安装便携版，下载后双击即可启动。
+
+也可以使用 [Rain 1.0.3.exe 直接下载链接](https://github.com/kkspectrekk-rgb/Rian/releases/download/v1.0.3/Rain.1.0.3.exe)。
+
+> 当前程序未进行代码签名，Windows 首次运行时可能显示“未知发布者”提示。文件 SHA-256：`27216147BEA6282B0D05349045F66E2FFDF03321C8D1F60034D4B00DD1930552`
 
 ## 快速开始
 
