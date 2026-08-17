@@ -270,11 +270,43 @@ function withLocalMetadata(track, metadata = {}) {
     album: metadata.album || (track.album === '已导入' ? '本地音乐' : track.album) || '本地音乐',
     cover: metadata.cover || track.cover || rainIcon,
     duration: Number(metadata.duration || track.duration || 0),
+    bitrate: Number(metadata.bitrate || track.bitrate || 0),
+    sampleRate: Number(metadata.sampleRate || track.sampleRate || 0),
+    bitsPerSample: Number(metadata.bitsPerSample || track.bitsPerSample || 0),
+    format: metadata.format || track.format || '',
+    lossless: Boolean(metadata.lossless ?? track.lossless),
     lyricRaw: metadata.lyricRaw || track.lyricRaw || '',
     translationRaw: metadata.translationRaw || track.translationRaw || '',
     romanRaw: metadata.romanRaw || track.romanRaw || '',
-    metadataVersion: 1,
+    metadataVersion: 2,
   };
+}
+
+function formatLocalBitrate(bitrate) {
+  const value = Number(bitrate);
+  if (!Number.isFinite(value) || value <= 0) return '';
+  const kbps = value / 1000;
+  return `${Number.isInteger(kbps) ? kbps : kbps.toFixed(1).replace(/\.0$/, '')} kbps`;
+}
+
+function formatSampleRate(sampleRate) {
+  const value = Number(sampleRate);
+  if (!Number.isFinite(value) || value <= 0) return '';
+  const khz = value / 1000;
+  return `${Number.isInteger(khz) ? khz : khz.toFixed(1).replace(/\.0$/, '')} kHz`;
+}
+
+function localQualityLabel(track) {
+  const bitrate = formatLocalBitrate(track?.bitrate);
+  if (!bitrate) return '本地原声';
+  const format = String(track?.format || '').trim().toUpperCase();
+  const sampleRate = formatSampleRate(track?.sampleRate);
+  return [format, bitrate, sampleRate].filter(Boolean).join(' · ');
+}
+
+function qualityOptionsForTrack(track) {
+  if (track?.source === 'local') return [['local', localQualityLabel(track)]];
+  return QUALITY_OPTIONS[track?.source] || QUALITY_OPTIONS.netease;
 }
 
 function loadCollection(key) {
@@ -1006,7 +1038,7 @@ function LyricsView({ track, currentTime, duration, playing, onToggle, onPreviou
         <div className="lyrics-options">
           <button className={`lyric-toggle ${showTranslation ? 'active' : ''}`} type="button" disabled={!hasTranslation} aria-pressed={showTranslation} onClick={() => setShowTranslation((state) => !state)}>翻译</button>
           <button className={`lyric-toggle ${showRoman ? 'active' : ''}`} type="button" disabled={!hasRoman} aria-pressed={showRoman} onClick={() => setShowRoman((state) => !state)}>音标</button>
-          <CustomSelect className="quality-select" label="音质" icon={<SlidersHorizontal size={15} />} value={quality} onChange={onQuality} disabled={qualityLoading || track.empty} options={QUALITY_OPTIONS[track.source] || QUALITY_OPTIONS.netease} />
+          <CustomSelect className="quality-select" label="音质" icon={<SlidersHorizontal size={15} />} value={quality} onChange={onQuality} disabled={qualityLoading || track.empty} options={qualityOptionsForTrack(track)} />
         </div>
       </div>
       <div className="lyrics-layout">
@@ -1163,7 +1195,7 @@ function App() {
     });
   }, []);
   useEffect(() => {
-    const staleTracks = localTracks.filter((track) => track.filePath && track.metadataVersion !== 1);
+    const staleTracks = localTracks.filter((track) => track.filePath && track.metadataVersion !== 2);
     if (!staleTracks.length) return;
     let cancelled = false;
     void Promise.all(staleTracks.map(async (track) => {
