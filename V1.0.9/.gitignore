@@ -5,3 +5,10 @@ dist/
 .env
 .env.*
 !.env.example
+
+# Rain per-user runtime data: encrypted API key, login cookies and media cache.
+settings.json
+rain-media-cache/
+Cookies
+Local Storage/
+Session Storage/
