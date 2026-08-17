@@ -9,6 +9,7 @@
 
 # Electron packaging output and portable binaries
 **/release/
+**/release-update/
 **/*.exe
 **/*.blockmap
 

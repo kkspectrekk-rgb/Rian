@@ -1,10 +1,9 @@
-const { app, BrowserWindow, ipcMain, safeStorage, protocol, net, Tray, Menu, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, safeStorage, protocol, Tray, Menu, nativeImage } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { Readable, Transform } = require('node:stream');
 const { pipeline } = require('node:stream/promises');
-const { pathToFileURL } = require('node:url');
 
 const API_BASE = 'https://api.chksz.com';
 const ACCOUNT_URL = `${API_BASE}/login.html`;
@@ -102,6 +101,66 @@ function extensionFor(contentType, remoteUrl, kind) {
   if (mime.includes('png')) return '.png';
   if (mime.includes('webp')) return '.webp';
   return kind === 'cover' ? '.jpg' : '.audio';
+}
+
+function cacheContentType(filePath) {
+  const extension = path.extname(filePath).toLowerCase();
+  return {
+    '.mp3': 'audio/mpeg',
+    '.flac': 'audio/flac',
+    '.m4a': 'audio/mp4',
+    '.aac': 'audio/aac',
+    '.ogg': 'audio/ogg',
+    '.wav': 'audio/wav',
+    '.webm': 'audio/webm',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.png': 'image/png',
+    '.webp': 'image/webp',
+  }[extension] || 'application/octet-stream';
+}
+
+function cachedFileResponse(filePath, request) {
+  const size = fs.statSync(filePath).size;
+  const headers = new Headers({
+    'Accept-Ranges': 'bytes',
+    'Cache-Control': 'private, max-age=31536000, immutable',
+    'Content-Type': cacheContentType(filePath),
+  });
+  const rangeHeader = request.headers.get('range');
+  if (!rangeHeader) {
+    headers.set('Content-Length', String(size));
+    const body = request.method === 'HEAD' ? null : Readable.toWeb(fs.createReadStream(filePath));
+    return new Response(body, { status: 200, headers });
+  }
+
+  const match = /^bytes=(\d*)-(\d*)$/i.exec(rangeHeader.trim());
+  if (!match || (!match[1] && !match[2])) {
+    headers.set('Content-Range', `bytes */${size}`);
+    return new Response(null, { status: 416, headers });
+  }
+  let start;
+  let end;
+  if (!match[1]) {
+    const suffixLength = Number(match[2]);
+    if (!Number.isFinite(suffixLength) || suffixLength <= 0) {
+      headers.set('Content-Range', `bytes */${size}`);
+      return new Response(null, { status: 416, headers });
+    }
+    start = Math.max(0, size - suffixLength);
+    end = size - 1;
+  } else {
+    start = Number(match[1]);
+    end = match[2] ? Math.min(Number(match[2]), size - 1) : size - 1;
+  }
+  if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || start >= size || end < start) {
+    headers.set('Content-Range', `bytes */${size}`);
+    return new Response(null, { status: 416, headers });
+  }
+  headers.set('Content-Length', String(end - start + 1));
+  headers.set('Content-Range', `bytes ${start}-${end}/${size}`);
+  const body = request.method === 'HEAD' ? null : Readable.toWeb(fs.createReadStream(filePath, { start, end }));
+  return new Response(body, { status: 206, headers });
 }
 
 async function downloadToCache(kind, remoteUrl, key, maxBytes) {
@@ -506,7 +565,7 @@ async function startApplication() {
       }
       const filePath = path.join(mediaCachePath(), kind, filename);
       if (!fs.existsSync(filePath)) return new Response('Not found', { status: 404 });
-      return net.fetch(pathToFileURL(filePath).toString());
+      return cachedFileResponse(filePath, request);
     } catch {
       return new Response('Not found', { status: 404 });
     }

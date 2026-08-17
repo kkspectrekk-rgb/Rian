@@ -94,7 +94,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .browse-heading { position: relative; z-index: 40; display: flex; align-items: center; justify-content: space-between; }
 .library-toolbar { position: relative; z-index: 40; display: flex; align-items: center; justify-content: space-between; width: calc(100% - 96px); max-width: 1104px; min-height: 76px; margin: 0 auto; padding-top: 17px; }
 .library-toolbar > p { margin: 0; color: var(--muted); font-size: 12px; font-weight: 690; letter-spacing: .045em; }
-.round-avatar { width: 36px; height: 36px; border: 0; border-radius: 50%; background: linear-gradient(145deg, #7269ad, #e2836f); font-size: 13px; font-weight: 700; box-shadow: inset 0 1px 0 rgba(255,255,255,.24); cursor: pointer; transition: transform 120ms var(--ease-out); }
+.round-avatar { position: relative; z-index: 2; width: 36px; height: 36px; border: 0; border-radius: 50%; background: linear-gradient(145deg, #7269ad, #e2836f); font-size: 13px; font-weight: 700; box-shadow: 0 8px 24px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.24); cursor: pointer; transition: transform 210ms cubic-bezier(.22,1,.36,1), box-shadow 180ms ease; }
 .round-avatar:active { transform: scale(.95); }
 
 .library-view, .search-view, .settings-view, .liked-view, .entity-library, .local-music-view, .playlists-view { height: 100%; overflow-y: auto; padding-bottom: 50px; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.2) transparent; }
@@ -246,12 +246,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 
 .lyrics-view { position: absolute; inset: 0; z-index: 30; height: 100%; min-height: 0; overflow: hidden; overscroll-behavior: none; contain: layout paint; padding: 0 33px 16px; background: radial-gradient(circle at 8% 88%, color-mix(in srgb, var(--edge-left) 18%, transparent), transparent 38%), radial-gradient(circle at 94% 8%, color-mix(in srgb, var(--edge-top) 12%, transparent), transparent 36%), #151417; opacity: 0; pointer-events: none; transform: translateY(32px); transition: transform 180ms cubic-bezier(.22,1,.36,1), opacity 140ms ease-out; }
 .lyrics-view[data-open="true"] { opacity: 1; pointer-events: auto; transform: translateY(0); transition-duration: 230ms, 180ms; }
-.lyrics-toolbar { position: relative; height: 72px; }
-.lyrics-toolbar > span:not(.lyrics-drag-zone) { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); color: rgba(255,255,255,.44); font-size: 10px; font-weight: 750; letter-spacing: .09em; text-transform: uppercase; }
+.lyrics-toolbar { position: relative; height: 64px; }
 .lyrics-drag-zone { position: absolute; top: 0; left: 0; right: 0; height: 42px; z-index: 1; -webkit-app-region: drag; }
 .lyrics-toolbar .icon-button { justify-self: start; }
 .lyrics-toolbar button, .lyrics-toolbar .select-root, .lyrics-toolbar .select-menu { position: relative; z-index: 2; -webkit-app-region: no-drag; }
-.lyrics-options { position: absolute; right: 126px; bottom: 10px; z-index: 12; display: flex; height: 30px; flex-wrap: nowrap; align-items: center; gap: 6px; white-space: nowrap; -webkit-app-region: no-drag; }
+.lyrics-options { position: absolute; right: 126px; bottom: 8px; z-index: 12; display: flex; height: 30px; flex-wrap: nowrap; align-items: center; gap: 6px; white-space: nowrap; -webkit-app-region: no-drag; }
 .lyrics-options > .lyric-toggle, .lyrics-options > .quality-select { align-self: center; }
 .lyrics-options > .quality-select { display: flex; height: 30px; align-items: center; }
 .quality-select .select-trigger { height: 30px; background: rgba(255,255,255,.095); font-size: 10px; }
@@ -262,11 +261,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .lyric-toggle.active { border-color: rgba(255,255,255,.18); background: rgba(255,255,255,.12); color: white; }
 .lyric-toggle:disabled { opacity: .28; cursor: default; }
 .lyric-toggle:active:not(:disabled) { transform: scale(.96); }
-.lyrics-layout { display: grid; grid-template-columns: minmax(315px, 0.82fr) minmax(390px, 1.18fr); gap: clamp(40px, 6vw, 96px); height: calc(100% - 72px); max-width: 1120px; margin: 0 auto; }
+.lyrics-layout { display: grid; grid-template-columns: minmax(315px, 0.82fr) minmax(390px, 1.18fr); gap: clamp(40px, 6vw, 96px); height: calc(100% - 64px); max-width: 1120px; margin: 0 auto; }
 .art-column { display: flex; min-width: 0; flex-direction: column; justify-content: center; padding-bottom: 28px; }
-.art-column-toolbar { display: flex; align-items: center; width: min(100%,440px); min-height: 40px; margin: 0 auto 8px; }
-.art-column-toolbar .lyrics-close { width: 36px; height: 36px; border: 1px solid rgba(255,255,255,.12); border-radius: 11px; background: rgba(255,255,255,.075); color: rgba(255,255,255,.82); box-shadow: inset 0 1px 0 rgba(255,255,255,.06); }
 .album-frame { position: relative; width: min(100%, 440px); aspect-ratio: 1; align-self: center; border-radius: 18px; padding: 2px; background: conic-gradient(from var(--aura-angle, 0deg), var(--edge-top), var(--edge-right), var(--edge-bottom), var(--edge-left), var(--edge-top)); box-shadow: 0 32px 76px rgba(0,0,0,.42), 0 0 52px color-mix(in srgb, var(--edge-left) 32%, transparent); }
+.album-frame .lyrics-close { position: absolute; top: 13px; left: 13px; z-index: 3; width: 38px; height: 38px; border: 1px solid rgba(255,255,255,.16); border-radius: 12px; background: rgba(15,15,17,.66); color: rgba(255,255,255,.9); box-shadow: 0 9px 28px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.08); backdrop-filter: blur(18px) saturate(140%); }
 .album-frame::before { content: ""; position: absolute; inset: -9px; z-index: -1; border-radius: 24px; background: conic-gradient(from 30deg, var(--edge-top), var(--edge-right), var(--edge-bottom), var(--edge-left)); opacity: .42; animation: aura-breathe 7s var(--ease-in-out) infinite alternate; }
 @keyframes aura-breathe { to { transform: scale(1.025) rotate(2deg); opacity: .67; } }
 .album-frame img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: 16px; }
@@ -394,10 +392,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .window-controls button { display: grid; place-items: center; width: 34px; height: 28px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: rgba(255,255,255,.62); cursor: pointer; transition: transform 120ms var(--ease-out), color 150ms ease, background-color 150ms ease; }
 .window-controls button:active { transform: scale(.95); }
 
-.profile-root { position: relative; z-index: 35; }
+.profile-root { position: relative; z-index: 35; margin-right: 56px; transform: translateY(20px); }
 .round-avatar { overflow: hidden; }
 .round-avatar img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center; transform: scale(1.035); }
-.profile-popover { position: absolute; top: calc(100% + 10px); right: 0; width: 310px; padding: 16px; border: 1px solid rgba(255,255,255,.13); border-radius: 16px; background: rgba(31,30,34,.95); box-shadow: 0 24px 70px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.07); backdrop-filter: blur(30px) saturate(160%); opacity: 0; visibility: hidden; pointer-events: none; transform: translateY(-10px) scale(.98); transform-origin: top right; transition: transform 160ms cubic-bezier(.22,1,.36,1), opacity 130ms ease-out, visibility 0s linear 160ms; }
+.profile-root[data-open="true"] .round-avatar { transform: translateX(-137px) scale(1.45); box-shadow: 0 14px 34px rgba(0,0,0,.38), 0 0 0 3px rgba(31,30,34,.95), 0 0 0 4px rgba(255,255,255,.16); }
+.profile-root[data-open="true"] .round-avatar:active { transform: translateX(-137px) scale(1.39); transition-duration: 100ms; }
+.profile-popover { position: absolute; top: 14px; right: 0; width: 310px; padding: 48px 16px 16px; border: 1px solid rgba(255,255,255,.13); border-radius: 16px; background: rgba(31,30,34,.95); box-shadow: 0 24px 70px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.07); backdrop-filter: blur(30px) saturate(160%); opacity: 0; visibility: hidden; pointer-events: none; transform: translateY(-8px) scale(.98); transform-origin: top right; transition: transform 180ms cubic-bezier(.22,1,.36,1), opacity 140ms ease-out, visibility 0s linear 180ms; }
 .profile-popover[data-open="true"] { opacity: 1; visibility: visible; pointer-events: auto; transform: translateY(0) scale(1); transition-duration: 210ms, 160ms, 0s; transition-delay: 0s; }
 .profile-title { display: flex; align-items: baseline; justify-content: space-between; }
 .profile-title span { font-size: 14px; font-weight: 730; }
@@ -581,6 +581,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
   .lyric-line .karaoke-word { transform: none !important; transition: color 100ms ease; }
   .select-menu, .recent-popover { transform: none; transition: opacity 120ms ease, visibility 0s linear 120ms; }
   .profile-popover, .lyrics-view { transform: none; transition: opacity 120ms ease, visibility 0s linear 120ms; }
+  .profile-root[data-open="true"] .round-avatar, .profile-root[data-open="true"] .round-avatar:active { transform: none; }
   .close-dialog-backdrop { transition: opacity 120ms ease; }
   .close-dialog { transform: none; transition: opacity 120ms ease; }
   .avatar-crop-backdrop { transition: opacity 120ms ease; }

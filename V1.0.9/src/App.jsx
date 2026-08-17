@@ -384,7 +384,7 @@ function ProfileMenu({ avatar, userName, stats }) {
   });
   const max = Math.max(...bars, 60);
   return (
-    <div className="profile-root" ref={rootRef} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
+    <div className="profile-root" data-open={open} ref={rootRef} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
       <button className="round-avatar" type="button" aria-expanded={open} onClick={() => setPinned((value) => !value)}>{avatar ? <img src={avatar} alt="用户头像" /> : initials(userName || 'R')}</button>
       <div className="profile-popover" data-open={open} aria-hidden={!open}>
         <div className="profile-title"><span>{userName || 'Rain 用户'}</span><small>听歌概览</small></div>
@@ -881,7 +881,7 @@ function SearchView({ active, hasApiKey, onNeedKey, onSelect, activeRequest, quo
     </button>
   ))}</div>;
 
-  if (entityDetail) return <section className="search-view entity-detail-view content-enter"><header className="entity-detail-heading"><button className="entity-back" type="button" onClick={() => setEntityDetail(null)}><ArrowLeft size={18} />返回搜索结果</button><IconButton label="关闭详情" onClick={() => setEntityDetail(null)}><X size={18} /></IconButton></header><div className="entity-detail-hero">{(() => { const art = artPlaceholder(entityDetail); return <span className={`entity-detail-art ${entityDetail.kind} ${art.className || ''}`} data-art-label={art['data-art-label']} style={art.style} />; })()}<div><p>{entityDetail.kind === 'artist' ? '歌手' : '专辑'} · {SOURCE_META[entityDetail.source]?.label}</p><h1>{entityDetail.name}</h1><span>{entityDetail.loading ? '正在使用一次调用获取完整曲目…' : entityDetail.error ? entityDetail.error : `${entityDetail.tracks?.length || 0} 首曲目${entityDetail.fromCache ? ' · 本地缓存' : ''}`}</span></div></div>{entityDetail.loading ? <div className="empty-state"><LoaderCircle className="spin" /><strong>正在获取完整曲目</strong><span>完成后再次打开会直接使用本地缓存。</span></div> : entityDetail.error ? <div className="empty-state error-state"><span className="error-dot">!</span><strong>无法加载详情</strong><span>{entityDetail.error}</span></div> : trackRows(entityDetail.tracks || [])}</section>;
+  if (entityDetail) return <section className="search-view entity-detail-view content-enter"><header className="entity-detail-heading"><button className="entity-back" type="button" onClick={() => setEntityDetail(null)}><ArrowLeft size={18} />返回搜索结果</button></header><div className="entity-detail-hero">{(() => { const art = artPlaceholder(entityDetail); return <span className={`entity-detail-art ${entityDetail.kind} ${art.className || ''}`} data-art-label={art['data-art-label']} style={art.style} />; })()}<div><p>{entityDetail.kind === 'artist' ? '歌手' : '专辑'} · {SOURCE_META[entityDetail.source]?.label}</p><h1>{entityDetail.name}</h1><span>{entityDetail.loading ? '正在使用一次调用获取完整曲目…' : entityDetail.error ? entityDetail.error : `${entityDetail.tracks?.length || 0} 首曲目${entityDetail.fromCache ? ' · 本地缓存' : ''}`}</span></div></div>{entityDetail.loading ? <div className="empty-state"><LoaderCircle className="spin" /><strong>正在获取完整曲目</strong><span>完成后再次打开会直接使用本地缓存。</span></div> : entityDetail.error ? <div className="empty-state error-state"><span className="error-dot">!</span><strong>无法加载详情</strong><span>{entityDetail.error}</span></div> : trackRows(entityDetail.tracks || [])}</section>;
 
   return (
     <section className="search-view content-enter" aria-hidden={!active}>
@@ -1003,7 +1003,6 @@ function LyricsView({ track, currentTime, duration, playing, onToggle, onPreviou
     <section className="lyrics-view" data-open={visible}>
       <div className="lyrics-toolbar">
         <span className="lyrics-drag-zone" aria-hidden="true" />
-        <span>{track.empty ? '未播放' : '正在播放'}</span>
         <div className="lyrics-options">
           <button className={`lyric-toggle ${showTranslation ? 'active' : ''}`} type="button" disabled={!hasTranslation} aria-pressed={showTranslation} onClick={() => setShowTranslation((state) => !state)}>翻译</button>
           <button className={`lyric-toggle ${showRoman ? 'active' : ''}`} type="button" disabled={!hasRoman} aria-pressed={showRoman} onClick={() => setShowRoman((state) => !state)}>音标</button>
@@ -1012,8 +1011,7 @@ function LyricsView({ track, currentTime, duration, playing, onToggle, onPreviou
       </div>
       <div className="lyrics-layout">
         <div className="art-column">
-          <div className="art-column-toolbar"><IconButton className="lyrics-close" label="收起歌词" onClick={onClose}><X size={19} /></IconButton></div>
-          <div className="album-frame"><img src={track.cover || rainIcon} alt={`${track.album} 封面`} /></div>
+          <div className="album-frame"><IconButton className="lyrics-close" label="收起歌词" onClick={onClose}><X size={19} /></IconButton><img src={track.cover || rainIcon} alt={`${track.album} 封面`} /></div>
           <div className="track-heading"><div><h2>{track.title}</h2><p>{track.artist} · {track.album}</p></div><div className="track-actions"><div className="track-action-buttons"><IconButton label="更多"><Ellipsis /></IconButton></div><span className="play-mode-status">{PLAY_MODE_META[playMode].label}</span></div></div>
           <div className="lyrics-controls">
             <div className="timeline">
@@ -1415,10 +1413,17 @@ function App() {
   };
 
   const seek = (time) => {
-    pendingSeekRef.current = time;
-    setCurrentTime(time);
-    if (!current.empty && audioRef.current) {
-      try { audioRef.current.currentTime = time; } catch {}
+    const audio = audioRef.current;
+    const availableDuration = Number.isFinite(audio?.duration) && audio.duration > 0 ? audio.duration : duration;
+    const target = Math.max(0, Math.min(Number(time) || 0, availableDuration || Number(time) || 0));
+    setCurrentTime(target);
+    if (!current.empty && audio) {
+      if (audio.readyState >= 1) {
+        pendingSeekRef.current = null;
+        try { audio.currentTime = target; } catch {}
+      } else {
+        pendingSeekRef.current = target;
+      }
     }
   };
 
