@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="./V1.0.3/src/assets/rain-icon.png" width="112" height="112" alt="Rain 图标">
+  <img src="./V1.0.4/src/assets/rain-icon.png" width="112" height="112" alt="Rain 图标">
 
   # Rain
 
@@ -7,12 +7,12 @@
 
   搜索、播放、逐字歌词与封面动态色彩，都集中在一个安静而流畅的界面中。
 
-  ![Version](https://img.shields.io/badge/version-1.0.3-18181b?style=flat-square)
+  ![Version](https://img.shields.io/badge/version-1.0.4-18181b?style=flat-square)
   ![Platform](https://img.shields.io/badge/platform-Windows-0078D4?style=flat-square&logo=windows11&logoColor=white)
   ![Electron](https://img.shields.io/badge/Electron-34-47848F?style=flat-square&logo=electron&logoColor=white)
   ![React](https://img.shields.io/badge/React-18-20232A?style=flat-square&logo=react&logoColor=61DAFB)
 
-  [![Download Rain](https://img.shields.io/badge/Download-Rain%201.0.3-ffffff?style=for-the-badge&logo=github&logoColor=black)](https://github.com/kkspectrekk-rgb/Rian/releases/latest)
+  [![Download Rain](https://img.shields.io/badge/Download-Rain%201.0.4-ffffff?style=for-the-badge&logo=github&logoColor=black)](https://github.com/kkspectrekk-rgb/Rian/releases/latest)
 </div>
 
 ---
@@ -37,30 +37,32 @@ Rain 不是网页播放器。它以独立 Windows 桌面程序运行，API 请�
 - **最近播放**：从底部播放栏向上展开，可快速重新播放听过的歌曲。
 - **本地缓存**：缓存搜索结果、歌曲资料、封面和已成功下载的音频，减少重复 API 调用。
 - **本地音乐**：支持导入 MP3、FLAC、WAV 等本地音频文件。
+- **可靠启动与单实例**：重复双击会唤醒已有窗口，不会创建多个 Rain 主实例；便携版使用独立临时目录避免并发启动卡死。
+- **托盘与关闭偏好**：关闭窗口时可选择退出或最小化到系统托盘，也可记住选择并在设置中随时更改。
 - **系统辅助设置**：兼容 Windows 减少动态效果、减少透明度和高对比度偏好。
 
-## V1.0.3 更新
+## V1.0.4 更新
 
-- 修复 LinuxDo 登录弹窗被 Electron 拦截的问题。
-- 初始播放器改为“未播放歌曲”，不再显示演示歌曲和歌词。
-- 新增顺序播放、随机播放和单曲循环状态提示。
-- 新增与播放进度同步的逐字歌词效果。
-- 改善搜索、最近播放和喜欢音乐中的封面、歌手与专辑信息。
-- 新增歌曲资料、封面、搜索结果与音频本地缓存。
-- 修复窄窗口下歌词工具栏与 Windows 窗口控制按钮重叠的问题。
-- 从本版本开始仅生成免安装便携版，不再生成 Setup 安装包。
+- 新增关闭确认弹窗，可选择退出 Rain 或最小化到系统托盘。
+- 支持“下次不再询问”，并可在设置中重新选择关闭行为。
+- 新增系统托盘图标、打开 Rain 和退出 Rain 菜单。
+- 新增单实例锁；重复启动会聚焦现有窗口，不再创建多个主实例。
+- 增加窗口准备显示、加载完成和超时三重启动兜底，并在主页面加载失败时自动重试。
+- 延迟加载 API 账户页，减少远程页面对首次显示速度的影响。
+- 便携版使用独立临时目录和快速解包模式，改善启动速度与连续双击稳定性。
+- 当前歌词不再缩放，字号与其他歌词一致；保留当前字词上浮、唱过后回落的效果。
 
-完整内容请查看 [更新日志 v1.0.3](./V1.0.3/更新日志v1.0.3.txt)。
+完整内容请查看 [更新日志 v1.0.4](./V1.0.4/更新日志v1.0.4.txt)。
 
 ## 下载 Rain
 
-[**前往 GitHub Releases 下载 Rain 1.0.3 →**](https://github.com/kkspectrekk-rgb/Rian/releases/latest)
+[**前往 GitHub Releases 下载 Rain 1.0.4 →**](https://github.com/kkspectrekk-rgb/Rian/releases/latest)
 
-在最新版发行页面的 **Assets** 区域选择 `Rain.1.0.3.exe`。这是 Windows x64 免安装便携版，下载后双击即可启动。
+在最新版发行页面的 **Assets** 区域选择 `Rain.1.0.4.exe`。这是 Windows x64 免安装便携版，下载后双击即可启动。V1.0.4 为改善启动速度采用快速解包，文件约 299 MB。
 
-也可以使用 [Rain 1.0.3.exe 直接下载链接](https://github.com/kkspectrekk-rgb/Rian/releases/download/v1.0.3/Rain.1.0.3.exe)。
+也可以使用 [Rain 1.0.4.exe 直接下载链接](https://github.com/kkspectrekk-rgb/Rian/releases/download/v1.0.4/Rain.1.0.4.exe)。
 
-> 当前程序未进行代码签名，Windows 首次运行时可能显示“未知发布者”提示。文件 SHA-256：`27216147BEA6282B0D05349045F66E2FFDF03321C8D1F60034D4B00DD1930552`
+> 当前程序未进行代码签名，Windows 首次运行时可能显示“未知发布者”提示。文件 SHA-256：`EE09D4F0321C45CB7262B81E195E04D71C0C37D8BDF04A8EF2BBA2593593792F`
 
 ## 快速开始
 
@@ -74,7 +76,7 @@ Rain 不是网页播放器。它以独立 Windows 桌面程序运行，API 请�
 
 ```powershell
 git clone https://github.com/kkspectrekk-rgb/Rian.git
-cd Rian\V1.0.3
+cd Rian\V1.0.4
 pnpm install
 pnpm dev
 ```
@@ -82,7 +84,7 @@ pnpm dev
 ### 构建便携版
 
 ```powershell
-cd V1.0.3
+cd V1.0.4
 pnpm install
 pnpm dist:win
 ```
@@ -90,7 +92,7 @@ pnpm dist:win
 构建完成后，免安装程序会生成在：
 
 ```text
-V1.0.3\release\Rain 1.0.3.exe
+V1.0.4\release\Rain 1.0.4.exe
 ```
 
 双击即可启动，不需要安装。仓库不提交 `node_modules`、构建目录或 EXE 文件，避免存储重复依赖和大体积二进制文件。
@@ -134,13 +136,13 @@ API Key 通过 Electron 主进程调用 Windows `safeStorage` 加密后保存在
 ```text
 Rian/
 ├─ README.md                    # 仓库主页说明
-├─ V1.0.3/
+├─ V1.0.4/
 │  ├─ electron/                # Electron 主进程、窗口与本地缓存
 │  ├─ src/                     # React 界面、API 适配与歌词解析
 │  ├─ build/                   # Rain 应用图标
 │  ├─ scripts/                 # 图标生成脚本
 │  ├─ package.json             # 依赖与便携版构建配置
-│  └─ 更新日志v1.0.3.txt
+│  └─ 更新日志v1.0.4.txt
 └─ .gitignore
 ```
 
