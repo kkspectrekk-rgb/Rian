@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="./V1.0.4/src/assets/rain-icon.png" width="112" height="112" alt="Rain 图标">
+  <img src="./V1.0.5/src/assets/rain-icon.png" width="112" height="112" alt="Rain 图标">
 
   # Rain
 
@@ -7,12 +7,12 @@
 
   搜索、播放、逐字歌词与封面动态色彩，都集中在一个安静而流畅的界面中。
 
-  ![Version](https://img.shields.io/badge/version-1.0.4-18181b?style=flat-square)
+  ![Version](https://img.shields.io/badge/version-1.0.5-18181b?style=flat-square)
   ![Platform](https://img.shields.io/badge/platform-Windows-0078D4?style=flat-square&logo=windows11&logoColor=white)
   ![Electron](https://img.shields.io/badge/Electron-34-47848F?style=flat-square&logo=electron&logoColor=white)
   ![React](https://img.shields.io/badge/React-18-20232A?style=flat-square&logo=react&logoColor=61DAFB)
 
-  [![Download Rain](https://img.shields.io/badge/Download-Rain%201.0.4-ffffff?style=for-the-badge&logo=github&logoColor=black)](https://github.com/kkspectrekk-rgb/Rian/releases/latest)
+  [![Download Rain](https://img.shields.io/badge/Download-Rain%201.0.5-ffffff?style=for-the-badge&logo=github&logoColor=black)](https://github.com/kkspectrekk-rgb/Rian/releases/latest)
 </div>
 
 ---
@@ -41,28 +41,26 @@ Rain 不是网页播放器。它以独立 Windows 桌面程序运行，API 请�
 - **托盘与关闭偏好**：关闭窗口时可选择退出或最小化到系统托盘，也可记住选择并在设置中随时更改。
 - **系统辅助设置**：兼容 Windows 减少动态效果、减少透明度和高对比度偏好。
 
-## V1.0.4 更新
+## V1.0.5 更新
 
-- 新增关闭确认弹窗，可选择退出 Rain 或最小化到系统托盘。
-- 支持“下次不再询问”，并可在设置中重新选择关闭行为。
-- 新增系统托盘图标、打开 Rain 和退出 Rain 菜单。
-- 新增单实例锁；重复启动会聚焦现有窗口，不再创建多个主实例。
-- 增加窗口准备显示、加载完成和超时三重启动兜底，并在主页面加载失败时自动重试。
-- 延迟加载 API 账户页，减少远程页面对首次显示速度的影响。
-- 便携版使用独立临时目录和快速解包模式，改善启动速度与连续双击稳定性。
-- 当前歌词不再缩放，字号与其他歌词一致；保留当前字词上浮、唱过后回落的效果。
+- 重新设计 Rain 图标，移除所有圆形和水滴形元素。
+- 所有雨线统一为同角度、同线宽、圆角端点的白色斜线。
+- 同步更新 Windows EXE、任务栏、系统托盘和播放器界面内图标。
+- 图标改为由脚本精确生成，可重复输出一致的 PNG 和多尺寸 ICO。
+- 继续沿用原用户数据目录，升级后保留 API Key、喜欢的音乐、最近播放和缓存。
+- 提交前执行密钥扫描，项目源码和 Release 不包含本机 API Key 或 `settings.json`。
 
-完整内容请查看 [更新日志 v1.0.4](./V1.0.4/更新日志v1.0.4.txt)。
+完整内容请查看 [更新日志 v1.0.5](./V1.0.5/更新日志v1.0.5.txt)。
 
 ## 下载 Rain
 
-[**前往 GitHub Releases 下载 Rain 1.0.4 →**](https://github.com/kkspectrekk-rgb/Rian/releases/latest)
+[**前往 GitHub Releases 下载 Rain 1.0.5 →**](https://github.com/kkspectrekk-rgb/Rian/releases/latest)
 
-在最新版发行页面的 **Assets** 区域选择 `Rain.1.0.4.exe`。这是 Windows x64 免安装便携版，下载后双击即可启动。V1.0.4 为改善启动速度采用快速解包，文件约 299 MB。
+在最新版发行页面的 **Assets** 区域选择 `Rain.1.0.5.exe`。这是 Windows x64 免安装便携版，下载后双击即可启动。V1.0.5 延续快速解包方式，文件约 299 MB。
 
-也可以使用 [Rain 1.0.4.exe 直接下载链接](https://github.com/kkspectrekk-rgb/Rian/releases/download/v1.0.4/Rain.1.0.4.exe)。
+也可以使用 [Rain 1.0.5.exe 直接下载链接](https://github.com/kkspectrekk-rgb/Rian/releases/download/v1.0.5/Rain.1.0.5.exe)。
 
-> 当前程序未进行代码签名，Windows 首次运行时可能显示“未知发布者”提示。文件 SHA-256：`EE09D4F0321C45CB7262B81E195E04D71C0C37D8BDF04A8EF2BBA2593593792F`
+> 当前程序未进行代码签名，Windows 首次运行时可能显示“未知发布者”提示。文件 SHA-256：`7050D5F0CD5B4883EE16D336403AB6911B0CF402F89C2E0B1CA0B945C889F400`
 
 ## 快速开始
 
@@ -76,7 +74,7 @@ Rain 不是网页播放器。它以独立 Windows 桌面程序运行，API 请�
 
 ```powershell
 git clone https://github.com/kkspectrekk-rgb/Rian.git
-cd Rian\V1.0.4
+cd Rian\V1.0.5
 pnpm install
 pnpm dev
 ```
@@ -84,7 +82,7 @@ pnpm dev
 ### 构建便携版
 
 ```powershell
-cd V1.0.4
+cd V1.0.5
 pnpm install
 pnpm dist:win
 ```
@@ -92,7 +90,7 @@ pnpm dist:win
 构建完成后，免安装程序会生成在：
 
 ```text
-V1.0.4\release\Rain 1.0.4.exe
+V1.0.5\release\Rain 1.0.5.exe
 ```
 
 双击即可启动，不需要安装。仓库不提交 `node_modules`、构建目录或 EXE 文件，避免存储重复依赖和大体积二进制文件。
@@ -136,13 +134,13 @@ API Key 通过 Electron 主进程调用 Windows `safeStorage` 加密后保存在
 ```text
 Rian/
 ├─ README.md                    # 仓库主页说明
-├─ V1.0.4/
+├─ V1.0.5/
 │  ├─ electron/                # Electron 主进程、窗口与本地缓存
 │  ├─ src/                     # React 界面、API 适配与歌词解析
 │  ├─ build/                   # Rain 应用图标
 │  ├─ scripts/                 # 图标生成脚本
 │  ├─ package.json             # 依赖与便携版构建配置
-│  └─ 更新日志v1.0.4.txt
+│  └─ 更新日志v1.0.5.txt
 └─ .gitignore
 ```
 
