@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="./V1.0.6/src/assets/rain-icon.png" width="112" height="112" alt="Rain 图标">
+  <img src="./V1.0.7/src/assets/rain-icon.png" width="112" height="112" alt="Rain 图标">
 
   # Rain
 
@@ -7,12 +7,12 @@
 
   搜索、播放、逐字歌词与封面动态色彩，都集中在一个安静而流畅的界面中。
 
-  ![Version](https://img.shields.io/badge/version-1.0.6-18181b?style=flat-square)
+  ![Version](https://img.shields.io/badge/version-1.0.7-18181b?style=flat-square)
   ![Platform](https://img.shields.io/badge/platform-Windows-0078D4?style=flat-square&logo=windows11&logoColor=white)
   ![Electron](https://img.shields.io/badge/Electron-34-47848F?style=flat-square&logo=electron&logoColor=white)
   ![React](https://img.shields.io/badge/React-18-20232A?style=flat-square&logo=react&logoColor=61DAFB)
 
-  [![Download Rain](https://img.shields.io/badge/Download-Rain%201.0.6-ffffff?style=for-the-badge&logo=github&logoColor=black)](https://github.com/kkspectrekk-rgb/Rian/releases/latest)
+  [![Download Rain](https://img.shields.io/badge/Download-Rain%201.0.7-ffffff?style=for-the-badge&logo=github&logoColor=black)](https://github.com/kkspectrekk-rgb/Rian/releases/latest)
 </div>
 
 ---
@@ -45,27 +45,28 @@ Rain 不是网页播放器。它以独立 Windows 桌面程序运行，API 请�
 - **托盘与关闭偏好**：关闭窗口时可选择退出或最小化到系统托盘，也可记住选择并在设置中随时更改。
 - **系统辅助设置**：兼容 Windows 减少动态效果、减少透明度和高对比度偏好。
 
-## V1.0.6 更新
+## V1.0.7 更新
 
-- 歌词详细页新增向上滑入、向下滑出动画，并修复逐字歌词被缩小为 12px 的问题。
-- 移除整条原生顶部栏，将最小化、最大化和关闭按钮整合到页面右上角。
-- 主页同步系统星期与当前时间；头像支持本地更换，并新增听歌统计趋势面板。
-- 搜索新增综合、单曲、歌手、专辑分类和最多 15 条最近搜索，分类切换不重复调用 API。
-- 资料库新增歌手、本地歌曲、专辑和我的歌单页面；本地歌曲可跨重启保留。
-- 网易云歌单使用一次 `/api/163_playlist` 调用补全；QQ/酷狗在没有正式详情接口时只保存链接。
-- 继续沿用原用户数据目录，保留加密 API Key、喜欢的音乐、最近播放和缓存。
+- 修复窗口底部空白和歌词页顶部透明拖拽层遮挡按钮的问题。
+- 搜索结果跨页面常驻，只有关闭结果或发起新搜索时清空，避免重复消耗调用次数。
+- 歌手与专辑支持独立详情页，首次查询后写入本地缓存。
+- 点击歌曲只开始播放，不再自动打开歌词；歌词页隐藏重复底栏。
+- 修复歌词点击、滚轮和进度拖动，并在切换音质时保留当前播放位置。
+- QQ 音乐与酷狗音乐缺少图片时显示稳定占位封面，解析到真实封面后自动缓存。
+- 头像更换新增圆形拖动裁剪和缩放，主页头像完整铺满圆形区域。
+- 继续沿用原用户数据目录，保留加密 API Key、登录会话、收藏和缓存。
 
-完整内容请查看 [更新日志 v1.0.6](./V1.0.6/更新日志v1.0.6.txt)。
+完整内容请查看 [更新日志 v1.0.7](./V1.0.7/更新日志v1.0.7.txt)。
 
 ## 下载 Rain
 
-[**前往 GitHub Releases 下载 Rain 1.0.6 →**](https://github.com/kkspectrekk-rgb/Rian/releases/latest)
+[**前往 GitHub Releases 下载 Rain 1.0.7 →**](https://github.com/kkspectrekk-rgb/Rian/releases/latest)
 
-在最新版发行页面的 **Assets** 区域选择 `Rain.1.0.6.exe`。这是 Windows x64 免安装便携版，下载后双击即可启动。文件约 299 MB。
+在最新版发行页面的 **Assets** 区域选择 `Rain.1.0.7.exe`。这是 Windows x64 免安装便携版，下载后双击即可启动，文件约 299 MB。
 
-也可以使用 [Rain 1.0.6.exe 直接下载链接](https://github.com/kkspectrekk-rgb/Rian/releases/download/v1.0.6/Rain.1.0.6.exe)。
+也可以使用 [Rain 1.0.7.exe 直接下载链接](https://github.com/kkspectrekk-rgb/Rian/releases/download/v1.0.7/Rain.1.0.7.exe)。
 
-> 当前程序未进行代码签名，Windows 首次运行时可能显示“未知发布者”提示。文件 SHA-256：`4FD4BB0DFC3055E6E2F817781AAF9E9E48F2B79ADA0FF52A6E774106CA2B095B`
+> 当前程序未进行代码签名，Windows 首次运行时可能显示“未知发布者”提示。文件 SHA-256：`8D9268070AE3DDDB9233968862D7A78AA5172EC8052B7F0DC5B8E43AC72148FA`
 
 ## 快速开始
 
@@ -79,7 +80,7 @@ Rain 不是网页播放器。它以独立 Windows 桌面程序运行，API 请�
 
 ```powershell
 git clone https://github.com/kkspectrekk-rgb/Rian.git
-cd Rian\V1.0.6
+cd Rian\V1.0.7
 pnpm install
 pnpm dev
 ```
@@ -87,7 +88,7 @@ pnpm dev
 ### 构建便携版
 
 ```powershell
-cd V1.0.6
+cd V1.0.7
 pnpm install
 pnpm dist:win
 ```
@@ -95,7 +96,7 @@ pnpm dist:win
 构建完成后，免安装程序会生成在：
 
 ```text
-V1.0.6\release\Rain 1.0.6.exe
+V1.0.7\release\Rain 1.0.7.exe
 ```
 
 双击即可启动，不需要安装。仓库不提交 `node_modules`、构建目录或 EXE 文件，避免存储重复依赖和大体积二进制文件。
@@ -139,13 +140,13 @@ API Key 通过 Electron 主进程调用 Windows `safeStorage` 加密后保存在
 ```text
 Rian/
 ├─ README.md                    # 仓库主页说明
-├─ V1.0.6/
+├─ V1.0.7/
 │  ├─ electron/                # Electron 主进程、窗口与本地缓存
 │  ├─ src/                     # React 界面、API 适配与歌词解析
 │  ├─ build/                   # Rain 应用图标
 │  ├─ scripts/                 # 图标生成脚本
 │  ├─ package.json             # 依赖与便携版构建配置
-│  └─ 更新日志v1.0.6.txt
+│  └─ 更新日志v1.0.7.txt
 └─ .gitignore
 ```
 
@@ -161,7 +162,7 @@ Rian/
 
 ## 版本管理
 
-Git 仓库从 **V1.0.3** 开始记录。后续每次新增或修改功能都会在根目录创建新的版本文件夹，例如 `V1.0.5`、`V1.0.6`，并在对应目录中附带同版本更新日志。
+Git 仓库从 **V1.0.3** 开始记录。后续每次新增或修改功能都会在根目录创建新的版本文件夹，例如 `V1.0.6`、`V1.0.7`，并在对应目录中附带同版本更新日志。
 
 ---
 
