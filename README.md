@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="./V1.0.8/src/assets/rain-icon.png" width="112" height="112" alt="Rain 图标">
+  <img src="./V1.0.9/src/assets/rain-icon.png" width="112" height="112" alt="Rain 图标">
 
   # Rain
 
@@ -7,12 +7,12 @@
 
   搜索、播放、逐字歌词与封面动态色彩，都集中在一个安静而流畅的界面中。
 
-  ![Version](https://img.shields.io/badge/version-1.0.8-18181b?style=flat-square)
+  ![Version](https://img.shields.io/badge/version-1.0.9-18181b?style=flat-square)
   ![Platform](https://img.shields.io/badge/platform-Windows-0078D4?style=flat-square&logo=windows11&logoColor=white)
   ![Electron](https://img.shields.io/badge/Electron-34-47848F?style=flat-square&logo=electron&logoColor=white)
   ![React](https://img.shields.io/badge/React-18-20232A?style=flat-square&logo=react&logoColor=61DAFB)
 
-  [![Download Rain](https://img.shields.io/badge/Download-Rain%201.0.8-ffffff?style=for-the-badge&logo=github&logoColor=black)](https://github.com/kkspectrekk-rgb/Rian/releases/latest)
+  [![Download Rain](https://img.shields.io/badge/Download-Rain%201.0.9-ffffff?style=for-the-badge&logo=github&logoColor=black)](https://github.com/kkspectrekk-rgb/Rian/releases/latest)
 </div>
 
 ---
@@ -36,9 +36,9 @@ Rain 不是网页播放器。它以独立 Windows 桌面程序运行，API 请�
 - **喜欢的音乐**：点击爱心即可收藏歌曲，并在独立页面中管理。
 - **最近播放**：从底部播放栏向上展开，可快速重新播放听过的歌曲。
 - **本地缓存**：缓存搜索结果、歌曲资料、封面和已成功下载的音频，减少重复 API 调用。
-- **本地音乐**：支持导入 MP3、FLAC、WAV 等本地音频文件。
+- **本地音乐**：支持导入 MP3、FLAC、WAV 等文件，读取内嵌封面、标题、歌手、专辑、时长与歌词，并按关键词、歌手和专辑筛选。
 - **分类搜索**：一次搜索生成综合、单曲、歌手、专辑结果，分类切换不会重复消耗 API 次数。
-- **完整资料库**：新增歌手、专辑、本地歌曲和我的歌单页面，搜索结果可直接收藏歌手与专辑。
+- **完整资料库**：歌手、专辑、本地歌曲和我的歌单页面齐全；收藏的歌手与专辑可直接打开详情，并优先复用本地缓存。
 - **歌单分享链接**：支持识别网易云、QQ 音乐和酷狗歌单长链接；网易云可用一次 API 调用补全整张歌单。
 - **听歌统计**：头像面板显示累计与今日听歌数据，并提供日、周、月趋势。
 - **可靠启动与单实例**：重复双击会唤醒已有窗口，不会创建多个 Rain 主实例；便携版使用独立临时目录避免并发启动卡死。
@@ -46,26 +46,27 @@ Rain 不是网页播放器。它以独立 Windows 桌面程序运行，API 请�
 - **系统辅助设置**：兼容 Windows 减少动态效果、减少透明度和高对比度偏好。
 - **可自定义快捷键**：默认使用空格播放/暂停，Alt+方向键切歌与调节音量；设置页支持录制组合键并在松键后保存。
 
-## V1.0.8 更新
+## V1.0.9 更新
 
-- 新增空格播放/暂停、Alt+←/→ 上一首/下一首、Alt+↑/↓ 调节音量。
-- 设置页新增快捷键管理，可录制 Ctrl、Alt、Shift、Win 与普通按键的组合。
-- 组合键在全部按键松开后保存，并提供冲突检测、Alt+F4 保护与一键恢复默认。
-- 输入文字、操作下拉菜单或弹窗时自动停用播放快捷键，避免误触。
-- 快捷键仅在 Rain 前台窗口生效，并保存在本机用户数据中。
-- 继续沿用原用户数据目录，保留加密 API Key、登录会话、收藏、缓存和其他设置。
+- 修复歌词页进入、退出时页面视口被连带滚动，导致顶部裁切和底部空缺的问题。
+- 翻译、音标、音质控件统一到同一行；关闭按钮移至封面上方，并恢复歌词页窗口拖拽。
+- 精简主页，移除占据大面积空间的标题和沉浸横幅。
+- 收藏歌手和专辑现在可点击打开完整曲目详情，并复用已有缓存。
+- 本地音乐可读取标签、内嵌封面与歌词，来源标识修正为“本地”。
+- 本地歌曲页新增搜索，以及歌手、专辑筛选。
+- 继续沿用原用户数据目录，保留加密 API Key、登录会话、收藏、缓存、快捷键和其他设置。
 
-完整内容请查看 [更新日志 v1.0.8](./V1.0.8/更新日志v1.0.8.txt)。
+完整内容请查看 [更新日志 v1.0.9](./V1.0.9/更新日志v1.0.9.txt)。
 
 ## 下载 Rain
 
-[**前往 GitHub Releases 下载 Rain 1.0.8 →**](https://github.com/kkspectrekk-rgb/Rian/releases/latest)
+[**前往 GitHub Releases 下载 Rain 1.0.9 →**](https://github.com/kkspectrekk-rgb/Rian/releases/latest)
 
-在最新版发行页面的 **Assets** 区域选择 `Rain.1.0.8.exe`。这是 Windows x64 免安装便携版，下载后双击即可启动，文件约 299 MB。
+在最新版发行页面的 **Assets** 区域选择 `Rain.1.0.9.exe`。这是 Windows x64 免安装便携版，下载后双击即可启动，文件约 300 MB。
 
-也可以使用 [Rain 1.0.8.exe 直接下载链接](https://github.com/kkspectrekk-rgb/Rian/releases/download/v1.0.8/Rain.1.0.8.exe)。
+也可以使用 [Rain 1.0.9.exe 直接下载链接](https://github.com/kkspectrekk-rgb/Rian/releases/download/v1.0.9/Rain.1.0.9.exe)。
 
-> 当前程序未进行代码签名，Windows 首次运行时可能显示“未知发布者”提示。文件 SHA-256：`FAE456C0138BD20136FD8FC262B55153736FB5C8DA74B7DB2A04093482D4443C`
+> 当前程序未进行代码签名，Windows 首次运行时可能显示“未知发布者”提示。文件 SHA-256：`F2B308F1A060B8F4A3AA403683AB6BBD638CF57D58B14AEF485835168557FD9B`
 
 ## 快速开始
 
@@ -79,7 +80,7 @@ Rain 不是网页播放器。它以独立 Windows 桌面程序运行，API 请�
 
 ```powershell
 git clone https://github.com/kkspectrekk-rgb/Rian.git
-cd Rian\V1.0.8
+cd Rian\V1.0.9
 pnpm install
 pnpm dev
 ```
@@ -87,7 +88,7 @@ pnpm dev
 ### 构建便携版
 
 ```powershell
-cd V1.0.8
+cd V1.0.9
 pnpm install
 pnpm dist:win
 ```
@@ -95,7 +96,7 @@ pnpm dist:win
 构建完成后，免安装程序会生成在：
 
 ```text
-V1.0.8\release\Rain 1.0.8.exe
+V1.0.9\release\Rain 1.0.9.exe
 ```
 
 双击即可启动，不需要安装。仓库不提交 `node_modules`、构建目录或 EXE 文件，避免存储重复依赖和大体积二进制文件。
@@ -139,13 +140,13 @@ API Key 通过 Electron 主进程调用 Windows `safeStorage` 加密后保存在
 ```text
 Rian/
 ├─ README.md                    # 仓库主页说明
-├─ V1.0.8/
+├─ V1.0.9/
 │  ├─ electron/                # Electron 主进程、窗口与本地缓存
 │  ├─ src/                     # React 界面、API 适配与歌词解析
 │  ├─ build/                   # Rain 应用图标
 │  ├─ scripts/                 # 图标生成脚本
 │  ├─ package.json             # 依赖与便携版构建配置
-│  └─ 更新日志v1.0.8.txt
+│  └─ 更新日志v1.0.9.txt
 └─ .gitignore
 ```
 
@@ -161,7 +162,7 @@ Rian/
 
 ## 版本管理
 
-Git 仓库从 **V1.0.3** 开始记录。后续每次新增或修改功能都会在根目录创建新的版本文件夹，例如 `V1.0.7`、`V1.0.8`，并在对应目录中附带同版本更新日志。
+Git 仓库从 **V1.0.3** 开始记录。后续每次新增或修改功能都会在根目录创建新的版本文件夹，例如 `V1.0.8`、`V1.0.9`，并在对应目录中附带同版本更新日志。
 
 ---
 
