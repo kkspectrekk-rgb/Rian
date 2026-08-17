@@ -249,14 +249,15 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .lyrics-toolbar { position: relative; height: 64px; }
 .lyrics-drag-zone { position: absolute; top: 0; left: 0; right: 0; height: 42px; z-index: 1; -webkit-app-region: drag; }
 .lyrics-toolbar .icon-button { justify-self: start; }
-.lyrics-toolbar button, .lyrics-toolbar .select-root, .lyrics-toolbar .select-menu { position: relative; z-index: 2; -webkit-app-region: no-drag; }
+.lyrics-toolbar button, .lyrics-toolbar .custom-select { position: relative; z-index: 2; -webkit-app-region: no-drag; }
+.lyrics-toolbar .select-menu { z-index: 40; -webkit-app-region: no-drag; }
 .lyrics-options { position: absolute; right: 126px; bottom: 8px; z-index: 12; display: flex; height: 30px; flex-wrap: nowrap; align-items: center; gap: 6px; white-space: nowrap; -webkit-app-region: no-drag; }
 .lyrics-options > .lyric-toggle, .lyrics-options > .quality-select { align-self: center; }
 .lyrics-options > .quality-select { display: flex; height: 30px; align-items: center; }
 .quality-select .select-trigger { height: 30px; background: rgba(255,255,255,.095); font-size: 10px; }
 .quality-select .select-trigger > span { max-width: 154px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .quality-select .select-trigger > svg:first-child { color: rgba(255,255,255,.58); }
-.quality-select .select-menu { min-width: 218px; }
+.quality-select .select-menu { top: calc(100% + 8px); right: auto; bottom: auto; left: 0; min-width: 218px; max-height: calc(100vh - 108px); overflow-y: auto; transform-origin: top left; }
 .lyric-toggle { height: 28px; padding: 0 9px; border: 1px solid rgba(255,255,255,.1); border-radius: 8px; background: rgba(255,255,255,.035); color: rgba(255,255,255,.42); font-size: 10px; font-weight: 680; cursor: pointer; transition: transform 120ms var(--ease-out), color 160ms ease, background-color 160ms ease, border-color 160ms ease; }
 .lyric-toggle.active { border-color: rgba(255,255,255,.18); background: rgba(255,255,255,.12); color: white; }
 .lyric-toggle:disabled { opacity: .28; cursor: default; }
