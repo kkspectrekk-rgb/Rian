@@ -84,14 +84,29 @@ const ONLINE_SOURCES = ['netease', 'qq', 'kugou'];
 
 const QUALITY_OPTIONS = {
   netease: [
-    ['standard', '标准'], ['exhigh', '极高'], ['lossless', '无损'], ['hires', 'Hi-Res'],
-    ['jyeffect', '沉浸环绕'], ['sky', '天空音频'], ['jymaster', '超清母带'],
+    ['standard', '标准 · 128 kbps'], ['exhigh', '极高 · 320 kbps'], ['lossless', '无损 · FLAC'], ['hires', 'Hi-Res · 高解析度'],
+    ['jyeffect', '沉浸环绕 · 空间音频'], ['sky', '天空音频 · 空间音频'], ['jymaster', '超清母带 · Master'],
   ],
-  qq: [['128k', '标准'], ['320k', '高品质'], ['flac', '无损'], ['hires', 'Hi-Res'], ['master', '母带']],
-  kugou: [['128k', '标准'], ['320k', '高品质'], ['flac', '无损'], ['hires', 'Hi-Res'], ['master', '母带']],
+  qq: [['128k', '标准 · 128 kbps'], ['320k', '高品质 · 320 kbps'], ['flac', '无损 · FLAC'], ['hires', 'Hi-Res · 高解析度'], ['master', '母带 · Master']],
+  kugou: [['128k', '标准 · 128 kbps'], ['320k', '高品质 · 320 kbps'], ['flac', '无损 · FLAC'], ['hires', 'Hi-Res · 高解析度'], ['master', '母带 · Master']],
   local: [['local', '本地原声']],
   empty: [['none', '未播放']],
 };
+
+const DEFAULT_QUALITIES = { netease: 'lossless', qq: 'flac', kugou: 'flac' };
+
+function loadDefaultQualities() {
+  try {
+    const stored = JSON.parse(localStorage.getItem('rain_default_qualities_v1') || '{}');
+    return Object.fromEntries(ONLINE_SOURCES.map((source) => {
+      const requested = stored[source];
+      const valid = QUALITY_OPTIONS[source].some(([value]) => value === requested);
+      return [source, valid ? requested : DEFAULT_QUALITIES[source]];
+    }));
+  } catch {
+    return { ...DEFAULT_QUALITIES };
+  }
+}
 
 const PLAY_MODE_META = {
   sequence: { label: '顺序播放', toast: '已改为顺序播放' },
@@ -589,7 +604,7 @@ function ShortcutRecorder({ shortcut, recording, onStart, onCancel, onCommit }) 
   );
 }
 
-function SettingsView({ hasApiKey, onSaved, notify, onOpenAccount, closeAction, onCloseAction, avatar, onAvatar, userName, shortcuts, onShortcut, onResetShortcuts }) {
+function SettingsView({ hasApiKey, onSaved, notify, onOpenAccount, closeAction, onCloseAction, avatar, onAvatar, userName, shortcuts, onShortcut, onResetShortcuts, defaultQualities, onDefaultQuality }) {
   const [key, setKey] = useState('');
   const [visible, setVisible] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -651,6 +666,27 @@ function SettingsView({ hasApiKey, onSaved, notify, onOpenAccount, closeAction, 
         }} /></label>
         {avatar && <button className="text-button danger" type="button" onClick={() => onAvatar('')}>移除</button>}
       </div>
+      <section className="quality-preference" aria-labelledby="quality-preference-heading">
+        <header className="quality-preference-heading">
+          <div className="setting-icon quality-setting-icon"><SlidersHorizontal size={20} /></div>
+          <div className="setting-copy">
+            <h2 id="quality-preference-heading">默认播放音质</h2>
+            <p>按平台设置首次解析时使用的音质；播放中仍可在歌词详细页单独切换。</p>
+          </div>
+        </header>
+        <div className="quality-preference-list">
+          {ONLINE_SOURCES.map((source) => (
+            <div className="quality-preference-row" key={source}>
+              <div>
+                <strong>{SOURCE_META[source].label}</strong>
+                <span>接口参数 · {source === 'netease' ? 'level' : 'size'}</span>
+              </div>
+              <CustomSelect className="default-quality-select" label={`${SOURCE_META[source].label}默认音质`} value={defaultQualities[source]} options={QUALITY_OPTIONS[source]} onChange={(value) => onDefaultQuality(source, value)} />
+            </div>
+          ))}
+        </div>
+        <p className="quality-preference-help">128 kbps 与 320 kbps 为文档明确的原生档位；FLAC、Hi-Res、空间音频及母带的实际采样率以平台返回的音频文件为准。</p>
+      </section>
       <section className="shortcut-preference" aria-labelledby="shortcut-heading">
         <header className="shortcut-heading">
           <div className="setting-icon shortcut-setting-icon"><Keyboard size={20} /></div>
@@ -1043,13 +1079,13 @@ function RecentMenu({ tracks, onPlay }) {
   );
 }
 
-function MiniPlayer({ track, playing, currentTime, duration, onToggle, onPrevious, onNext, onOpen, volume, onVolume, liked, onToggleLike, recent, onPlayRecent, playMode, onSetPlayMode }) {
+function MiniPlayer({ track, playing, currentTime, duration, onToggle, onPrevious, onNext, onOpen, onSeek, volume, onVolume, liked, onToggleLike, recent, onPlayRecent, playMode, onSetPlayMode }) {
   return (
     <footer className="mini-player">
       <button className="mini-track" onClick={onOpen}><span className="mini-art"><img src={track.cover || rainIcon} alt="" /></span><span><strong>{track.title}</strong><small>{track.artist}</small></span></button>
       <div className="mini-center">
         <div className="mini-controls"><IconButton className={`heart-button ${liked ? 'liked' : ''}`} label={liked ? '取消喜欢' : '加入喜欢的音乐'} aria-pressed={liked} onClick={onToggleLike}><Heart size={18} fill={liked ? 'currentColor' : 'none'} /></IconButton><IconButton label="上一首" onClick={onPrevious}><SkipBack size={17} fill="currentColor" /></IconButton><button className="mini-play" onClick={onToggle} aria-label={playing ? '暂停' : '播放'}>{playing ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}</button><IconButton label="下一首" onClick={onNext}><SkipForward size={17} fill="currentColor" /></IconButton><IconButton className={playMode === 'sequence' ? 'mode-active' : ''} label="按顺序播放" aria-pressed={playMode === 'sequence'} onClick={() => onSetPlayMode('sequence')}><ListOrdered size={18} /></IconButton></div>
-        <div className="mini-progress"><span>{formatTime(currentTime)}</span><div><i style={{ transform: `scaleX(${duration ? currentTime / duration : 0})` }} /></div><span>-{formatTime(Math.max(0, duration - currentTime))}</span></div>
+        <div className="mini-progress"><span>{formatTime(currentTime)}</span><div className="mini-scrubber"><div><i style={{ transform: `scaleX(${duration ? currentTime / duration : 0})` }} /></div><input aria-label="播放进度" type="range" min="0" max={duration || 1} step="0.1" value={Math.min(currentTime, duration || 1)} disabled={track.empty || !duration} onChange={(event) => onSeek(Number(event.target.value))} /></div><span>-{formatTime(Math.max(0, duration - currentTime))}</span></div>
       </div>
       <div className="mini-actions"><RecentMenu tracks={recent} onPlay={onPlayRecent} /><Volume2 size={17} /><input aria-label="音量" type="range" min="0" max="1" step="0.01" value={volume} onChange={(event) => onVolume(Number(event.target.value))} /></div>
     </footer>
@@ -1066,7 +1102,9 @@ function App() {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(0.8);
+  const [volumeFeedback, setVolumeFeedback] = useState(null);
   const [shortcuts, setShortcuts] = useState(loadKeyboardShortcuts);
+  const [defaultQualities, setDefaultQualities] = useState(loadDefaultQualities);
   const [quality, setQuality] = useState('none');
   const [playMode, setPlayMode] = useState(() => {
     const saved = localStorage.getItem('rain_play_mode');
@@ -1093,6 +1131,7 @@ function App() {
   const loadedAudioUrlRef = useRef('');
   const pendingSeekRef = useRef(null);
   const lyricCloseTimer = useRef(null);
+  const volumeFeedbackTimer = useRef(null);
   const listeningRef = useRef({ lastTime: 0, pending: 0, track: '' });
   const palette = useEdgePalette(current.cover || rainIcon);
 
@@ -1149,6 +1188,8 @@ function App() {
   useEffect(() => { localStorage.setItem('rain_profile_avatar', avatar); }, [avatar]);
   useEffect(() => { localStorage.setItem('rain_listening_stats_v1', JSON.stringify(listeningStats)); }, [listeningStats]);
   useEffect(() => { localStorage.setItem('rain_keyboard_shortcuts_v1', JSON.stringify(shortcuts)); }, [shortcuts]);
+  useEffect(() => { localStorage.setItem('rain_default_qualities_v1', JSON.stringify(defaultQualities)); }, [defaultQualities]);
+  useEffect(() => () => { if (volumeFeedbackTimer.current) clearTimeout(volumeFeedbackTimer.current); }, []);
   useEffect(() => {
     if (!current || current.empty) return;
     setRecent((tracks) => [current, ...tracks.filter((item) => trackKey(item) !== trackKey(current))].slice(0, 30));
@@ -1198,6 +1239,11 @@ function App() {
   useEffect(() => { if (audioRef.current) audioRef.current.volume = volume; }, [volume]);
 
   const notify = (message, type = 'neutral') => setToast({ message, type });
+  const showVolumeFeedback = (nextVolume) => {
+    if (volumeFeedbackTimer.current) clearTimeout(volumeFeedbackTimer.current);
+    setVolumeFeedback(Math.round(nextVolume * 100));
+    volumeFeedbackTimer.current = setTimeout(() => setVolumeFeedback(null), 1200);
+  };
   const openLyrics = () => {
     if (lyricCloseTimer.current) clearTimeout(lyricCloseTimer.current);
     setLyricsMounted(true);
@@ -1213,6 +1259,10 @@ function App() {
     if (!result?.ok) return notify('无法保存关闭窗口设置', 'error');
     setCloseAction(result.closeAction || nextAction);
     notify(`关闭窗口时：${CLOSE_ACTION_OPTIONS.find(([value]) => value === nextAction)?.[1] || nextAction}`, 'success');
+  };
+  const changeDefaultQuality = (source, nextQuality) => {
+    if (!ONLINE_SOURCES.includes(source) || !QUALITY_OPTIONS[source].some(([value]) => value === nextQuality)) return;
+    setDefaultQualities((currentQualities) => ({ ...currentQualities, [source]: nextQuality }));
   };
   const chooseCloseAction = async (action, remember) => {
     setCloseDialogOpen(false);
@@ -1278,7 +1328,7 @@ function App() {
   const selectSearchResult = async (item, results) => {
     setActiveRequest(trackKey(item));
     try {
-      const defaultQuality = item.source === 'netease' ? 'lossless' : 'flac';
+      const defaultQuality = defaultQualities[item.source] || DEFAULT_QUALITIES[item.source] || 'flac';
       const detail = await resolveTrack(item, defaultQuality);
       setQueue(results);
       setCurrent(detail);
@@ -1309,7 +1359,7 @@ function App() {
         setDuration(item.duration || 0);
         setPlaying(true);
       } else {
-        const nextQuality = item.quality || (item.source === 'netease' ? 'lossless' : 'flac');
+        const nextQuality = item.quality || defaultQualities[item.source] || DEFAULT_QUALITIES[item.source] || 'flac';
         const detail = await resolveTrack(item, nextQuality);
         setCurrent(detail);
         setQueue([item]);
@@ -1499,14 +1549,21 @@ function App() {
       if (action === 'togglePlay') togglePlay();
       else if (action === 'previous') void playAdjacent(-1);
       else if (action === 'next') void playAdjacent(1);
-      else if (action === 'volumeUp') setVolume((value) => Math.min(1, Math.round((value + .05) * 100) / 100));
-      else if (action === 'volumeDown') setVolume((value) => Math.max(0, Math.round((value - .05) * 100) / 100));
+      else if (action === 'volumeUp') {
+        const nextVolume = Math.min(1, Math.round((volume + .05) * 100) / 100);
+        setVolume(nextVolume);
+        showVolumeFeedback(nextVolume);
+      } else if (action === 'volumeDown') {
+        const nextVolume = Math.max(0, Math.round((volume - .05) * 100) / 100);
+        setVolume(nextVolume);
+        showVolumeFeedback(nextVolume);
+      }
     };
     window.addEventListener('keydown', onShortcutKeyDown, true);
     return () => window.removeEventListener('keydown', onShortcutKeyDown, true);
-  }, [shortcuts, current.empty, current.audioUrl, current.id, current.source, playing, queue, playMode, quality]);
+  }, [shortcuts, current.empty, current.audioUrl, current.id, current.source, playing, queue, playMode, quality, volume]);
 
-  const nonSearchView = view === 'settings' ? <SettingsView hasApiKey={hasApiKey} onSaved={setHasApiKey} notify={notify} onOpenAccount={openAccount} closeAction={closeAction} onCloseAction={changeCloseAction} avatar={avatar} onAvatar={setAvatar} userName={quota.userName} shortcuts={shortcuts} onShortcut={changeShortcut} onResetShortcuts={resetShortcuts} />
+  const nonSearchView = view === 'settings' ? <SettingsView hasApiKey={hasApiKey} onSaved={setHasApiKey} notify={notify} onOpenAccount={openAccount} closeAction={closeAction} onCloseAction={changeCloseAction} avatar={avatar} onAvatar={setAvatar} userName={quota.userName} shortcuts={shortcuts} onShortcut={changeShortcut} onResetShortcuts={resetShortcuts} defaultQualities={defaultQualities} onDefaultQuality={changeDefaultQuality} />
     : view === 'liked' ? <LikesView liked={liked} onPlay={playSavedTrack} onRemove={toggleLike} activeRequest={activeRequest} />
     : view === 'albums' ? <EntityLibraryView title="专辑" subtitle="在搜索的专辑分类中点击爱心收藏。" items={savedAlbums} kind="album" onToggle={toggleEntity(setSavedAlbums)} onOpen={openSavedEntity} />
     : view === 'artists' ? <EntityLibraryView title="歌手" subtitle="在搜索的歌手分类中点击爱心收藏。" items={savedArtists} kind="artist" onToggle={toggleEntity(setSavedArtists)} onOpen={openSavedEntity} />
@@ -1539,8 +1596,9 @@ function App() {
         <div className="base-view" hidden={view === 'search'}>{nonSearchView}</div>
         {lyricsMounted && <LyricsView visible={lyricsVisible} track={current} currentTime={currentTime} duration={duration} playing={playing} onToggle={togglePlay} onPrevious={() => playAdjacent(-1)} onNext={() => playAdjacent(1)} onClose={closeLyrics} onSeek={seek} quality={quality} onQuality={changeQuality} qualityLoading={qualityLoading} playMode={playMode} onSetPlayMode={changePlayMode} />}
       </main>
-      {!lyricsMounted && <MiniPlayer track={current} playing={playing} currentTime={currentTime} duration={duration} onToggle={togglePlay} onPrevious={() => playAdjacent(-1)} onNext={() => playAdjacent(1)} onOpen={openLyrics} volume={volume} onVolume={setVolume} liked={!current.empty && liked.some((track) => trackKey(track) === trackKey(current))} onToggleLike={() => toggleLike(current)} recent={recent} onPlayRecent={playSavedTrack} playMode={playMode} onSetPlayMode={changePlayMode} />}
+      {!lyricsMounted && <MiniPlayer track={current} playing={playing} currentTime={currentTime} duration={duration} onToggle={togglePlay} onPrevious={() => playAdjacent(-1)} onNext={() => playAdjacent(1)} onOpen={openLyrics} onSeek={seek} volume={volume} onVolume={setVolume} liked={!current.empty && liked.some((track) => trackKey(track) === trackKey(current))} onToggleLike={() => toggleLike(current)} recent={recent} onPlayRecent={playSavedTrack} playMode={playMode} onSetPlayMode={changePlayMode} />}
       <audio ref={audioRef} onTimeUpdate={handleAudioTimeUpdate} onLoadedMetadata={handleLoadedMetadata} onEnded={handleEnded} />
+      {volumeFeedback !== null && <div className={`volume-feedback ${lyricsMounted ? 'in-lyrics' : ''}`} role="status" aria-live="polite"><Volume2 size={17} /><div><span>音量</span><strong>{volumeFeedback}%</strong><i><b style={{ transform: `scaleX(${volumeFeedback / 100})` }} /></i></div></div>}
       {toast && <div className={`toast ${toast.type}`} role="status"><span>{toast.type === 'success' ? <Check size={16} /> : toast.type === 'error' ? '!' : <Sparkles size={16} />}</span>{toast.message}</div>}
       {closeDialogOpen && <CloseBehaviorDialog onChoose={chooseCloseAction} onCancel={cancelClose} />}
     </div>
