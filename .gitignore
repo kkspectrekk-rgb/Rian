@@ -17,6 +17,8 @@
 **/.env.*
 !**/.env.example
 **/*.log
+**/settings.json
+**/rain-media-cache/
 
 # OS and editor files
 .DS_Store
