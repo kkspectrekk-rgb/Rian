@@ -265,7 +265,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .lyrics-view { position: absolute; inset: 0; z-index: 30; height: 100%; min-height: 0; overflow: hidden; overscroll-behavior: none; contain: layout paint; padding: 0 33px 16px; background: radial-gradient(circle at 8% 88%, color-mix(in srgb, var(--edge-left) 18%, transparent), transparent 38%), radial-gradient(circle at 94% 8%, color-mix(in srgb, var(--edge-top) 12%, transparent), transparent 36%), #151417; opacity: 0; pointer-events: none; transform: translateY(32px); transition: transform 180ms cubic-bezier(.22,1,.36,1), opacity 140ms ease-out; }
 .lyrics-view[data-open="true"] { opacity: 1; pointer-events: auto; transform: translateY(0); transition-duration: 230ms, 180ms; }
 .lyrics-toolbar { position: relative; height: 64px; }
-.lyrics-drag-zone { position: absolute; top: 0; left: 0; right: 0; height: 42px; z-index: 1; -webkit-app-region: drag; }
+.lyrics-drag-zone { position: absolute; top: 0; left: 0; right: 150px; height: 42px; z-index: 1; -webkit-app-region: drag; }
 .lyrics-toolbar .icon-button { justify-self: start; }
 .lyrics-toolbar button, .lyrics-toolbar .custom-select { position: relative; z-index: 2; -webkit-app-region: no-drag; }
 .lyrics-toolbar .select-menu { z-index: 40; -webkit-app-region: no-drag; }
