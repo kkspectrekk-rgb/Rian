@@ -4,6 +4,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { Readable, Transform } = require('node:stream');
 const { pipeline } = require('node:stream/promises');
+const { spawn } = require('node:child_process');
 
 const API_BASE = 'https://api.chksz.com';
 const ACCOUNT_URL = `${API_BASE}/login.html`;
@@ -33,6 +34,7 @@ let pendingSecondInstance = false;
 let quitting = false;
 let quotaStatus = { connected: false, state: 'checking', updatedAt: 0 };
 let musicMetadataModule;
+let updateState = { checking: false, update: null, downloading: false, downloadedPath: '' };
 
 const CLOSE_ACTIONS = new Set(['ask', 'quit', 'tray']);
 
@@ -558,6 +560,71 @@ function createWindow() {
   return win;
 }
 
+function updateDirectory() {
+  return path.join(app.getPath('userData'), 'updates');
+}
+
+function versionGreater(left, right) {
+  const parse = (value) => String(value).replace(/^v/i, '').split(/[.-]/).map((part) => Number.parseInt(part, 10) || 0);
+  const leftParts = parse(left);
+  const rightParts = parse(right);
+  for (let index = 0; index < Math.max(leftParts.length, rightParts.length); index += 1) {
+    const a = leftParts[index] || 0;
+    const b = rightParts[index] || 0;
+    if (a > b) return true;
+    if (a < b) return false;
+  }
+  return false;
+}
+
+function sendUpdateProgress(percent) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('updates:progress', { percent });
+  }
+}
+
+async function fetchLatestUpdate() {
+  const response = await fetch('https://api.github.com/repos/kkspectrekk-rgb/Rian/releases/latest', {
+    headers: { 'User-Agent': 'Rain-Music-Updater', Accept: 'application/vnd.github+json' },
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!response.ok) throw new Error(`GitHub 响应 ${response.status}`);
+  const release = await response.json();
+  const version = String(release.tag_name || '').replace(/^v/i, '');
+  const current = app.getVersion();
+  if (!version || !versionGreater(version, current)) return { update: null, current };
+  const asset = (release.assets || []).find((item) => /\.exe$/i.test(item.name || ''));
+  if (!asset?.browser_download_url) throw new Error('新版本没有可下载的便携版文件');
+  return {
+    update: {
+      version,
+      name: release.name || `Rain ${version}`,
+      notes: release.body || '',
+      assetUrl: asset.browser_download_url,
+      assetName: asset.name,
+    },
+    current,
+  };
+}
+
+async function downloadUpdateAsset(info) {
+  fs.mkdirSync(updateDirectory(), { recursive: true });
+  const filePath = path.join(updateDirectory(), info.assetName);
+  const response = await fetch(info.assetUrl);
+  if (!response.ok || !response.body) throw new Error('下载新版本失败');
+  const total = Number(response.headers.get('content-length') || 0);
+  let received = 0;
+  const progress = new Transform({
+    transform(chunk, _encoding, callback) {
+      received += chunk.length;
+      if (total > 0) sendUpdateProgress(Math.min(100, Math.round((received / total) * 100)));
+      callback(null, chunk);
+    },
+  });
+  await pipeline(Readable.fromWeb(response.body), progress, fs.createWriteStream(filePath));
+  return filePath;
+}
+
 async function startApplication() {
   app.setAppUserModelId('com.aurora.music');
   protocol.handle('rain-cache', (request) => {
@@ -757,6 +824,61 @@ async function startApplication() {
     } catch {
       return { ok: false };
     }
+  });
+
+  ipcMain.handle('updates:check', async () => {
+    if (updateState.checking) return { ok: false, checking: true, message: '正在检查更新' };
+    updateState.checking = true;
+    try {
+      const result = await fetchLatestUpdate();
+      updateState.update = result.update;
+      updateState.downloading = false;
+      updateState.downloadedPath = '';
+      return { ok: true, ...result, checking: false };
+    } catch (error) {
+      return { ok: false, checking: false, message: error.message || '检查更新失败' };
+    } finally {
+      updateState.checking = false;
+    }
+  });
+
+  ipcMain.handle('updates:download', async () => {
+    if (!updateState.update) return { ok: false, message: '请先检查更新' };
+    if (updateState.downloading) return { ok: false, message: '正在下载新版本' };
+    updateState.downloading = true;
+    sendUpdateProgress(0);
+    try {
+      updateState.downloadedPath = await downloadUpdateAsset(updateState.update);
+      sendUpdateProgress(100);
+      return { ok: true, downloaded: true };
+    } catch (error) {
+      return { ok: false, message: error.message || '下载新版本失败' };
+    } finally {
+      updateState.downloading = false;
+    }
+  });
+
+  ipcMain.handle('updates:install', () => {
+    if (!updateState.downloadedPath || !updateState.update) return { ok: false, message: '新版本尚未下载完成' };
+    const helperPath = path.join(app.getPath('temp'), `rain-update-${Date.now()}.cmd`);
+    const script = [
+      '@echo off',
+      'chcp 65001 >nul',
+      ':wait',
+      `tasklist /FI "PID eq ${process.pid}" | findstr "${process.pid}" >nul`,
+      'if not errorlevel 1 (',
+      '  timeout /t 1 /nobreak >nul',
+      '  goto wait',
+      ')',
+      `copy /Y "${updateState.downloadedPath}" "${process.execPath}"`,
+      `start "" "${process.execPath}"`,
+      'del "%~f0"',
+    ].join('\r\n');
+    fs.writeFileSync(helperPath, script, 'utf8');
+    spawn('cmd.exe', ['/c', helperPath], { detached: true, stdio: 'ignore' }).unref();
+    quitting = true;
+    setImmediate(() => app.quit());
+    return { ok: true };
   });
 
   createWindow();

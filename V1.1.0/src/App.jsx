@@ -5,8 +5,10 @@ import {
   BarChart3,
   Check,
   ChevronDown,
+  ChevronRight,
   Clock3,
   Crop,
+  Download,
   Ellipsis,
   Heart,
   HardDrive,
@@ -44,7 +46,9 @@ import {
   apiRequest,
   cacheAudio,
   cacheTrackKey,
+  checkForUpdates,
   clearApiKey,
+  downloadUpdate,
   extractLyricPayload,
   getCachedSearch,
   getCachedTrack,
@@ -59,9 +63,11 @@ import {
   normalizeSearch,
   onCloseRequested,
   onQuotaUpdated,
+  onUpdateProgress,
   openQuotaLogin,
   putCachedSearch,
   putCachedTrack,
+  installUpdate,
   resolveClose,
   saveApiKey,
   saveCloseAction,
@@ -422,7 +428,7 @@ function ProfileMenu({ avatar, userName, stats }) {
         <div className="profile-title"><span>{userName || 'Rain 用户'}</span><small>听歌概览</small></div>
         <div className="stat-grid"><span><strong>{Math.floor(stats.totalSeconds / 60)}</strong><small>累计分钟</small></span><span><strong>{stats.totalTracks}</strong><small>累计歌曲</small></span><span><strong>{Math.floor(today.seconds / 60)}</strong><small>今日分钟</small></span><span><strong>{today.tracks}</strong><small>今日歌曲</small></span></div>
         <div className="chart-tabs"><BarChart3 size={14} />{[['day','日'],['week','周'],['month','月']].map(([value, label]) => <button type="button" className={range === value ? 'active' : ''} key={value} onClick={() => setRange(value)}>{label}</button>)}</div>
-        <div className="listening-chart" aria-label={`${range}听歌趋势`}>{bars.map((value, index) => <i key={index} style={{ transform: `scaleY(${Math.max(.06, value / max)})` }} />)}</div>
+        <div className="listening-chart" aria-label={`${range}听歌趋势`}>{bars.map((value, index) => <i key={index} title={`${Math.floor(value / 60)} 分钟`} style={{ transform: `scaleY(${Math.max(.06, value / max)})` }} />)}</div>
       </div>
     </div>
   );
@@ -636,7 +642,7 @@ function ShortcutRecorder({ shortcut, recording, onStart, onCancel, onCommit }) 
   );
 }
 
-function SettingsView({ hasApiKey, onSaved, notify, onOpenAccount, closeAction, onCloseAction, avatar, onAvatar, userName, shortcuts, onShortcut, onResetShortcuts, defaultQualities, onDefaultQuality }) {
+function SettingsView({ hasApiKey, onSaved, notify, onOpenAccount, closeAction, onCloseAction, avatar, onAvatar, userName, shortcuts, onShortcut, onResetShortcuts, defaultQualities, onDefaultQuality, onCheckUpdate, updateChecking }) {
   const [key, setKey] = useState('');
   const [visible, setVisible] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -685,6 +691,11 @@ function SettingsView({ hasApiKey, onSaved, notify, onOpenAccount, closeAction, 
       </form>
       <div className="privacy-note"><Sparkles size={17} /><p>桌面版通过 Electron 主进程请求 API，Key 不会进入界面日志或项目源码。请勿在截图或公开链接中分享密钥。</p></div>
       <button className="login-link" type="button" onClick={onOpenAccount}>登录 API 网站、获取或管理 API Key <span>↗</span></button>
+      <div className="settings-card update-card">
+        <div className="setting-icon update-setting-icon"><RotateCcw size={20} /></div>
+        <div className="setting-copy"><h2>软件更新</h2><p>检查 GitHub 上的 Rain 最新便携版，并下载替换当前版本。</p></div>
+        <button className="secondary-button" type="button" disabled={updateChecking} onClick={onCheckUpdate}>{updateChecking ? <LoaderCircle className="spin" size={14} /> : <RotateCcw size={14} />}检查更新</button>
+      </div>
       <div className="profile-setting settings-card">
         <div className="settings-avatar">{avatar ? <img src={avatar} alt="当前头像" /> : initials(userName || 'R')}</div>
         <div className="setting-copy"><h2>个人头像</h2><p>{userName || '登录 API 网站后可同步用户名'}。头像只保存在这台设备上。</p></div>
@@ -794,7 +805,26 @@ function CloseBehaviorDialog({ onChoose, onCancel }) {
   );
 }
 
-function SearchView({ active, hasApiKey, onNeedKey, onSelect, activeRequest, quota, onOpenAccount, savedArtists, savedAlbums, onSaveArtist, onSaveAlbum, entityRequest }) {
+function UpdateDialog({ info, downloading, progress, onClose, onUpdate }) {
+  return (
+    <div className="close-dialog-backdrop" role="presentation" onPointerDown={(event) => { if (event.target === event.currentTarget && !downloading) onClose(); }}>
+      <div className="close-dialog update-dialog" role="dialog" aria-modal="true" aria-labelledby="update-dialog-title">
+        <div className="close-dialog-icon"><Download size={22} /></div>
+        <h2 id="update-dialog-title">发现新版本</h2>
+        <p className="update-version">{info.name || `Rain ${info.version}`}</p>
+        <div className="update-notes">{info.notes || '这个版本没有提供更新说明。'}</div>
+        {downloading ? (
+          <div className="update-progress"><span>{progress}%</span><i><b style={{ transform: `scaleX(${progress / 100})` }} /></i></div>
+        ) : (
+          <button className="primary-button" type="button" onClick={onUpdate}><Download size={16} />立即更新</button>
+        )}
+        {!downloading && <button className="dialog-cancel" type="button" onClick={onClose}>稍后再说</button>}
+      </div>
+    </div>
+  );
+}
+
+function SearchView({ active, hasApiKey, onNeedKey, onSelect, onPlayAll, activeRequest, quota, onOpenAccount, savedArtists, savedAlbums, onSaveArtist, onSaveAlbum, entityRequest, liked, onToggleLike }) {
   const [query, setQuery] = useState('');
   const [source, setSource] = useState('netease');
   const [results, setResults] = useState([]);
@@ -905,15 +935,21 @@ function SearchView({ active, hasApiKey, onNeedKey, onSelect, activeRequest, quo
     return <article className="entity-card" key={item.id}><button className="entity-main" type="button" onClick={() => openEntity(item, kind)}><span className={`entity-art ${kind} ${art.className || ''}`} data-art-label={art['data-art-label']} style={art.style} /><div><strong>{item.name}</strong><small>{kind === 'artist' ? `${item.tracks.length} 首匹配歌曲` : item.artist}</small></div></button><button type="button" className={`entity-save ${saved ? 'saved' : ''}`} aria-label={saved ? '取消收藏' : '收藏到资料库'} onClick={() => (kind === 'artist' ? onSaveArtist : onSaveAlbum)(item)}><Heart size={17} fill={saved ? 'currentColor' : 'none'} /></button></article>;
   })}</div>;
 
-  const trackRows = (items = results) => <div className="results-list">{items.map((item, index) => (
-    <button className="result-row" key={`${item.source}-${item.id}-${index}`} onClick={() => playResult(item, items)} disabled={Boolean(activeRequest)}>
-      <span className="result-index">{activeRequest === trackKey(item) ? <LoaderCircle className="spin" size={16} /> : String(index + 1).padStart(2, '0')}</span>
-      {(() => { const art = artPlaceholder(item); return <span className={`result-art ${art.className || ''}`} data-art-label={art['data-art-label']} style={art.style} />; })()}
-      <span className="result-title"><strong>{item.title}</strong><small>{item.artist}</small></span><span className="result-album">{item.album}</span><SourceMark source={item.source} /><span className="result-play"><Play size={14} fill="currentColor" /></span>
-    </button>
-  ))}</div>;
+  const trackRows = (items = results) => <div className="results-list">{items.map((item, index) => {
+    const isLiked = liked.some((track) => trackKey(track) === trackKey(item));
+    return (
+      <div className="saved-track-row search-track-row" key={`${item.source}-${item.id}-${index}`}>
+        <button className="saved-track-main result-row" onClick={() => playResult(item, items)} disabled={Boolean(activeRequest)}>
+          <span className="result-index">{activeRequest === trackKey(item) ? <LoaderCircle className="spin" size={16} /> : String(index + 1).padStart(2, '0')}</span>
+          {(() => { const art = artPlaceholder(item); return <span className={`result-art ${art.className || ''}`} data-art-label={art['data-art-label']} style={art.style} />; })()}
+          <span className="result-title"><strong>{item.title}</strong><small>{item.artist}</small></span><span className="result-album">{item.album}</span><SourceMark source={item.source} /><span className="result-play"><Play size={14} fill="currentColor" /></span>
+        </button>
+        <IconButton className={`saved-remove search-favorite ${isLiked ? 'liked' : ''}`} label={isLiked ? `取消喜欢 ${item.title}` : `喜欢 ${item.title}`} onClick={() => onToggleLike(item)}><Heart size={15} fill={isLiked ? 'currentColor' : 'none'} /></IconButton>
+      </div>
+    );
+  })}</div>;
 
-  if (entityDetail) return <section className="search-view entity-detail-view content-enter"><header className="entity-detail-heading"><button className="entity-back" type="button" onClick={() => setEntityDetail(null)}><ArrowLeft size={18} />返回搜索结果</button></header><div className="entity-detail-hero">{(() => { const art = artPlaceholder(entityDetail); return <span className={`entity-detail-art ${entityDetail.kind} ${art.className || ''}`} data-art-label={art['data-art-label']} style={art.style} />; })()}<div><p>{entityDetail.kind === 'artist' ? '歌手' : '专辑'} · {SOURCE_META[entityDetail.source]?.label}</p><h1>{entityDetail.name}</h1><span>{entityDetail.loading ? '正在使用一次调用获取完整曲目…' : entityDetail.error ? entityDetail.error : `${entityDetail.tracks?.length || 0} 首曲目${entityDetail.fromCache ? ' · 本地缓存' : ''}`}</span></div></div>{entityDetail.loading ? <div className="empty-state"><LoaderCircle className="spin" /><strong>正在获取完整曲目</strong><span>完成后再次打开会直接使用本地缓存。</span></div> : entityDetail.error ? <div className="empty-state error-state"><span className="error-dot">!</span><strong>无法加载详情</strong><span>{entityDetail.error}</span></div> : trackRows(entityDetail.tracks || [])}</section>;
+  if (entityDetail) return <section className="search-view entity-detail-view content-enter"><header className="entity-detail-heading"><button className="entity-back" type="button" onClick={() => setEntityDetail(null)}><ArrowLeft size={18} />返回搜索结果</button></header><div className="entity-detail-hero">{(() => { const art = artPlaceholder(entityDetail); return <span className={`entity-detail-art ${entityDetail.kind} ${art.className || ''}`} data-art-label={art['data-art-label']} style={art.style} />; })()}<div><p>{entityDetail.kind === 'artist' ? '歌手' : '专辑'} · {SOURCE_META[entityDetail.source]?.label}</p><h1>{entityDetail.name}</h1><span>{entityDetail.loading ? '正在使用一次调用获取完整曲目…' : entityDetail.error ? entityDetail.error : `${entityDetail.tracks?.length || 0} 首曲目${entityDetail.fromCache ? ' · 本地缓存' : ''}`}</span>{!entityDetail.loading && !entityDetail.error && entityDetail.tracks?.length > 0 && <button className="primary-button play-all-inline" type="button" onClick={() => onPlayAll(entityDetail.tracks)}><Play size={16} />全部播放</button>}</div></div>{entityDetail.loading ? <div className="empty-state"><LoaderCircle className="spin" /><strong>正在获取完整曲目</strong><span>完成后再次打开会直接使用本地缓存。</span></div> : entityDetail.error ? <div className="empty-state error-state"><span className="error-dot">!</span><strong>无法加载详情</strong><span>{entityDetail.error}</span></div> : trackRows(entityDetail.tracks || [])}</section>;
 
   return (
     <section className="search-view content-enter" aria-hidden={!active}>
@@ -951,30 +987,45 @@ function SearchView({ active, hasApiKey, onNeedKey, onSelect, activeRequest, quo
   );
 }
 
-function LibraryView({ onOpenLyrics, onImport, onOpenLikes, current, likedCount, avatar, userName, stats }) {
+function LibraryView({ onImport, onOpenLikes, onOpenRecent, current, likedCount, avatar, userName, stats }) {
   const fileInput = useRef(null);
   const [now, setNow] = useState(new Date());
   useEffect(() => { const timer = setInterval(() => setNow(new Date()), 30000); return () => clearInterval(timer); }, []);
   return (
     <section className="library-view content-enter">
-      <header className="library-toolbar"><p>{systemDayLabel(now)} · {now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })}</p><ProfileMenu avatar={avatar} userName={userName} stats={stats} /></header>
-      <div className="section-title"><div><h2>你的音乐</h2><p>本地收藏与最近播放</p></div><button className="text-button" onClick={() => fileInput.current?.click()}>导入音乐</button></div>
+      <header className="library-toolbar"><p>{systemDayLabel(now)} · {now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })}</p></header>
+      <div className="section-title"><div className="section-title-copy"><div><h2>你的音乐</h2><p>本地收藏与最近播放</p></div><ProfileMenu avatar={avatar} userName={userName} stats={stats} /></div></div>
       <input ref={fileInput} onChange={onImport} className="sr-only" type="file" accept="audio/*" multiple />
       <div className="collection-grid">
         <button className="collection-card favorite" onClick={onOpenLikes}><div className="collection-art"><Heart size={38} fill="white" /></div><strong>喜欢的音乐</strong><small>{likedCount ? `${likedCount} 首歌曲` : '你的收藏'}</small></button>
-        <button className="collection-card" onClick={onOpenLyrics}><div className="collection-art recent" style={{ backgroundImage: `url(${current.cover})` }} /><strong>最近播放</strong><small>{current.title}</small></button>
+        <button className="collection-card" onClick={onOpenRecent}><div className="collection-art recent" style={{ backgroundImage: `url(${current.cover})` }} /><strong>最近播放</strong><small>{current.title}</small></button>
         <button className="collection-card dashed" onClick={() => fileInput.current?.click()}><div className="collection-art import-art"><Upload size={30} /></div><strong>导入本地音乐</strong><small>MP3、FLAC、WAV 等</small></button>
       </div>
     </section>
   );
 }
 
-function LikesView({ liked, onPlay, onRemove, activeRequest }) {
+function RecentView({ tracks, onPlay, onPlayAll, onBack, activeRequest }) {
+  return (
+    <section className="liked-view content-enter">
+      <header className="page-heading recent-heading">
+        <button className="entity-back recent-back" type="button" onClick={onBack}><ArrowLeft size={18} />返回首页</button>
+        <div className="liked-symbol recent-symbol"><Clock3 size={34} /></div>
+        <div><p>你的资料库</p><h1>最近播放</h1><span>{tracks.length} 首歌曲</span></div>
+        <button className="primary-button" type="button" disabled={!tracks.length} onClick={() => onPlayAll(tracks)}><Play size={16} />全部播放</button>
+      </header>
+      <TrackRows tracks={tracks} onPlay={onPlay} activeRequest={activeRequest} emptyTitle="还没有最近播放" emptyCopy="播放过的歌曲会出现在这里。" />
+    </section>
+  );
+}
+
+function LikesView({ liked, onPlay, onPlayAll, onRemove, activeRequest }) {
   return (
     <section className="liked-view content-enter">
       <header className="page-heading liked-heading">
         <div className="liked-symbol"><Heart size={34} fill="currentColor" /></div>
         <div><p>你的资料库</p><h1>喜欢的音乐</h1><span>{liked.length} 首歌曲</span></div>
+        <button className="primary-button" type="button" disabled={!liked.length} onClick={() => onPlayAll(liked)}><Play size={16} />全部播放</button>
       </header>
       <TrackRows tracks={liked} onPlay={onPlay} onRemove={onRemove} activeRequest={activeRequest} emptyTitle="还没有喜欢的音乐" emptyCopy="在播放栏点击爱心，歌曲会出现在这里。" />
     </section>
@@ -985,7 +1036,7 @@ function EntityLibraryView({ title, subtitle, items, kind, onToggle, onOpen }) {
   return <section className="entity-library content-enter"><header className="page-heading"><p>你的资料库</p><h1>{title}</h1><span>{items.length} 个收藏</span></header>{items.length ? <div className="library-entity-grid">{items.map((item) => <article className="library-entity-card" key={item.id}><button className="library-entity-main" type="button" onClick={() => onOpen(item, kind)}><span className={`library-entity-art ${kind}`} style={{ backgroundImage: `url(${item.cover || rainIcon})` }} /><span><strong>{item.name}</strong><small>{item.artist || `${item.tracks?.length || 0} 首歌曲`}</small></span></button><button className="entity-save saved" type="button" onClick={() => onToggle(item)} aria-label="取消收藏"><Heart size={17} fill="currentColor" /></button></article>)}</div> : <div className="empty-state"><Album /><strong>还没有收藏{title}</strong><span>{subtitle}</span></div>}</section>;
 }
 
-function LocalMusicView({ tracks, onImport, onPlay, activeRequest }) {
+function LocalMusicView({ tracks, onImport, onPlay, onPlayAll, activeRequest }) {
   const fileRef = useRef(null);
   const [query, setQuery] = useState('');
   const [artist, setArtist] = useState('all');
@@ -997,18 +1048,49 @@ function LocalMusicView({ tracks, onImport, onPlay, activeRequest }) {
     return tracks.filter((track) => (artist === 'all' || track.artist === artist) && (album === 'all' || track.album === album) && (!keyword || [track.title, track.artist, track.album].some((value) => String(value || '').toLocaleLowerCase().includes(keyword))));
   }, [tracks, query, artist, album]);
   return <section className="local-music-view content-enter">
-    <header className="page-heading collection-page-heading"><div><p>这台 Windows 设备</p><h1>本地歌曲</h1><span>{filtered.length === tracks.length ? `${tracks.length} 首歌曲` : `${filtered.length} / ${tracks.length} 首歌曲`}</span></div><button className="primary-button" type="button" onClick={() => fileRef.current?.click()}><Upload size={16} />添加文件</button></header>
+    <header className="page-heading collection-page-heading"><div><p>这台 Windows 设备</p><h1>本地歌曲</h1><span>{filtered.length === tracks.length ? `${tracks.length} 首歌曲` : `${filtered.length} / ${tracks.length} 首歌曲`}</span><button className="primary-button play-all-inline" type="button" disabled={!tracks.length} onClick={() => onPlayAll(tracks)}><Play size={16} />全部播放</button></div><button className="primary-button" type="button" onClick={() => fileRef.current?.click()}><Upload size={16} />添加文件</button></header>
     <input ref={fileRef} className="sr-only" type="file" accept="audio/*" multiple onChange={onImport} />
     <div className="local-tools"><label className="local-search"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索歌曲、歌手或专辑" /></label><CustomSelect label="歌手筛选" value={artist} onChange={setArtist} options={[["all", "全部歌手"], ...artists.map((value) => [value, value])]} /><CustomSelect label="专辑筛选" value={album} onChange={setAlbum} options={[["all", "全部专辑"], ...albums.map((value) => [value, value])]} /></div>
     <TrackRows tracks={filtered} onPlay={onPlay} activeRequest={activeRequest} emptyTitle={tracks.length ? '没有匹配的本地歌曲' : '还没有本地歌曲'} emptyCopy={tracks.length ? '试试其他关键词或清除筛选条件。' : '点击“添加文件”导入 MP3、FLAC、WAV 等音频。'} />
   </section>;
 }
 
-function PlaylistsView({ playlists, onAdd, onPlay, activeRequest, loading }) {
+function PlaylistDetailView({ playlist, onBack, onPlay, onPlayAll, activeRequest }) {
+  return (
+    <section className="playlists-view playlist-detail-view content-enter">
+      <header className="entity-detail-heading">
+        <button className="entity-back" type="button" onClick={onBack}><ArrowLeft size={18} />返回我的歌单</button>
+      </header>
+      <div className="entity-detail-hero playlist-detail-hero">
+        <span className="playlist-detail-cover" style={{ backgroundImage: `url(${playlist.cover || rainIcon})` }} />
+        <div><p>歌单 · {SOURCE_META[playlist.source]?.label}</p><h1>{playlist.title}</h1><span>{playlist.tracks?.length || 0} 首歌曲</span>{playlist.tracks?.length > 0 && <button className="primary-button play-all-inline" type="button" onClick={() => onPlayAll(playlist.tracks)}><Play size={16} />全部播放</button>}</div>
+      </div>
+      <TrackRows tracks={playlist.tracks || []} onPlay={onPlay} activeRequest={activeRequest} emptyTitle="链接已保存" emptyCopy="当前 API 文档没有这个平台的歌单详情接口。" />
+    </section>
+  );
+}
+
+function PlaylistsView({ playlists, onAdd, onPlay, onPlayAll, onRemove, activeRequest, loading }) {
   const [url, setUrl] = useState('');
-  const [expanded, setExpanded] = useState('');
+  const [selectedKey, setSelectedKey] = useState('');
+  const selected = playlists.find((playlist) => `${playlist.source}:${playlist.id}:${playlist.url}` === selectedKey);
   const submit = async (event) => { event.preventDefault(); if (await onAdd(url)) setUrl(''); };
-  return <section className="playlists-view content-enter"><header className="page-heading"><p>跨平台收藏</p><h1>我的歌单</h1><span>{playlists.length} 个歌单</span></header><form className="playlist-import" onSubmit={submit}><input value={url} onChange={(event) => setUrl(event.target.value)} placeholder="粘贴网易云、QQ 音乐或酷狗歌单分享长链接" /><button className="primary-button" disabled={!url.trim() || loading} type="submit">{loading ? <LoaderCircle className="spin" size={16} /> : <Upload size={16} />}导入歌单</button></form><p className="playlist-note">网易云歌单使用文档提供的单次接口补全全部歌曲；QQ 音乐与酷狗会先保存分享链接，等待 API 提供歌单详情接口。</p><div className="playlist-list">{playlists.map((playlist) => <article className="playlist-card" key={`${playlist.source}:${playlist.id}:${playlist.url}`}><button type="button" className="playlist-summary" onClick={() => setExpanded((value) => value === playlist.id ? '' : playlist.id)}><span className="playlist-cover" style={{ backgroundImage: `url(${playlist.cover || rainIcon})` }} /><span><strong>{playlist.title}</strong><small>{SOURCE_META[playlist.source]?.label} · {playlist.tracks?.length || 0} 首歌曲</small></span><ChevronDown size={17} className={expanded === playlist.id ? 'expanded' : ''} /></button>{expanded === playlist.id && <TrackRows tracks={playlist.tracks || []} onPlay={onPlay} activeRequest={activeRequest} emptyTitle="链接已保存" emptyCopy="当前 API 文档没有这个平台的歌单详情接口。" />}</article>)}</div></section>;
+  if (selected) return <PlaylistDetailView playlist={selected} onBack={() => setSelectedKey('')} onPlay={onPlay} onPlayAll={onPlayAll} activeRequest={activeRequest} />;
+  return (
+    <section className="playlists-view content-enter">
+      <header className="page-heading"><p>跨平台收藏</p><h1>我的歌单</h1><span>{playlists.length} 个歌单</span></header>
+      <form className="playlist-import" onSubmit={submit}><input value={url} onChange={(event) => setUrl(event.target.value)} placeholder="粘贴网易云、QQ 音乐或酷狗歌单分享长链接" /><button className="primary-button" disabled={!url.trim() || loading} type="submit">{loading ? <LoaderCircle className="spin" size={16} /> : <Upload size={16} />}导入歌单</button></form>
+      <p className="playlist-note">网易云歌单使用文档提供的单次接口补全全部歌曲；QQ 音乐与酷狗会先保存分享链接，等待 API 提供歌单详情接口。</p>
+      <div className="playlist-list">
+        {playlists.map((playlist) => (
+          <article className="playlist-card" key={`${playlist.source}:${playlist.id}:${playlist.url}`}>
+            <button type="button" className="playlist-summary" onClick={() => setSelectedKey(`${playlist.source}:${playlist.id}:${playlist.url}`)}><span className="playlist-cover" style={{ backgroundImage: `url(${playlist.cover || rainIcon})` }} /><span><strong>{playlist.title}</strong><small>{SOURCE_META[playlist.source]?.label} · {playlist.tracks?.length || 0} 首歌曲</small></span></button>
+            <IconButton className="saved-remove playlist-remove" label={`删除歌单 ${playlist.title}`} onClick={() => onRemove(playlist)}><X size={15} /></IconButton>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
 }
 
 function LyricsView({ track, currentTime, duration, playing, onToggle, onPrevious, onNext, onClose, onSeek, quality, onQuality, qualityLoading, playMode, onSetPlayMode, visible }) {
@@ -1020,6 +1102,15 @@ function LyricsView({ track, currentTime, duration, playing, onToggle, onPreviou
   const [showRoman, setShowRoman] = useState(true);
   const hasTranslation = lyrics.some((line) => line.translation);
   const hasRoman = lyrics.some((line) => line.roman);
+  const onSeekRef = useRef(onSeek);
+  onSeekRef.current = onSeek;
+  const lyricList = useMemo(() => lyrics.map((line, index) => (
+    <button key={`${line.time}-${index}`} className="lyric-line" data-active={index === activeIndex} onClick={() => onSeekRef.current(line.time)}>
+      {showRoman && line.roman && <span className="roman">{line.roman}</span>}
+      <strong aria-label={line.text}>{line.text}</strong>
+      {showTranslation && line.translation && <span>{line.translation}</span>}
+    </button>
+  )), [lyrics, activeIndex, showTranslation, showRoman]);
 
   useEffect(() => {
     if (Date.now() < manualScrollUntilRef.current) return;
@@ -1049,6 +1140,7 @@ function LyricsView({ track, currentTime, duration, playing, onToggle, onPreviou
             <div className="timeline">
               <div className="timeline-track"><span style={{ transform: `scaleX(${duration ? currentTime / duration : 0})` }} /></div>
               <input aria-label="播放进度" type="range" min="0" max={duration || 1} step="0.1" value={Math.min(currentTime, duration || 1)} onChange={(event) => onSeek(Number(event.target.value))} />
+              <span className="timeline-thumb" style={{ left: `${Math.max(0, Math.min(100, duration ? (currentTime / duration) * 100 : 0))}%` }} />
               <small>{formatTime(currentTime)}</small><small>-{formatTime(Math.max(0, duration - currentTime))}</small>
             </div>
             <div className="main-controls"><IconButton className={playMode === 'shuffle' || playMode === 'repeat' ? 'mode-active' : ''} label={playMode === 'repeat' ? '切换到随机播放' : '切换到单曲循环'} onClick={() => onSetPlayMode(playMode === 'shuffle' ? 'repeat' : 'shuffle')}>{playMode === 'repeat' ? <Repeat1 size={19} /> : <Shuffle size={19} />}</IconButton><IconButton label="上一首" onClick={onPrevious}><SkipBack size={26} fill="currentColor" /></IconButton><button className="large-play" onClick={onToggle} aria-label={playing ? '暂停' : '播放'}>{playing ? <Pause fill="currentColor" /> : <Play fill="currentColor" />}</button><IconButton label="下一首" onClick={onNext}><SkipForward size={26} fill="currentColor" /></IconButton><IconButton className={playMode === 'sequence' ? 'mode-active' : ''} label="顺序播放" aria-pressed={playMode === 'sequence'} onClick={() => onSetPlayMode('sequence')}><ListOrdered size={19} /></IconButton></div>
@@ -1056,18 +1148,7 @@ function LyricsView({ track, currentTime, duration, playing, onToggle, onPreviou
         </div>
         <div className="lyric-scroll" ref={scrollRef} tabIndex="0" aria-label="同步歌词" onWheel={() => { manualScrollUntilRef.current = Date.now() + 5000; }} onPointerDown={() => { manualScrollUntilRef.current = Date.now() + 5000; }}>
           <div className="lyric-spacer" />
-          {lyrics.length ? lyrics.map((line, index) => (
-            <button key={`${line.time}-${index}`} className="lyric-line" data-active={index === activeIndex} onClick={() => onSeek(line.time)}>
-              {showRoman && line.roman && <span className="roman">{line.roman}</span>}
-              <strong className={index === activeIndex ? 'karaoke-text' : ''} aria-label={line.text}>
-                {index === activeIndex ? line.words.map((word, wordIndex) => {
-                  const state = currentTime < word.start ? 'future' : currentTime < word.end ? 'current' : 'passed';
-                  return <span className={`karaoke-word ${state}`} key={`${word.start}-${wordIndex}`}>{word.text}</span>;
-                }) : line.text}
-              </strong>
-              {showTranslation && line.translation && <span>{line.translation}</span>}
-            </button>
-          )) : <div className="no-lyrics"><Music2 /><strong>{track.empty ? '未播放歌曲' : '暂无歌词'}</strong><span>{track.empty ? '选择一首歌曲后，这里会显示同步歌词。' : '这首歌曲没有返回可用的歌词。'}</span></div>}
+          {lyrics.length ? lyricList : <div className="no-lyrics"><Music2 /><strong>{track.empty ? '未播放歌曲' : '暂无歌词'}</strong><span>{track.empty ? '选择一首歌曲后，这里会显示同步歌词。' : '这首歌曲没有返回可用的歌词。'}</span></div>}
           <div className="lyric-spacer" />
         </div>
       </div>
@@ -1075,7 +1156,7 @@ function LyricsView({ track, currentTime, duration, playing, onToggle, onPreviou
   );
 }
 
-function RecentMenu({ tracks, onPlay }) {
+function QueueMenu({ tracks, onPlay }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
   useEffect(() => {
@@ -1092,9 +1173,9 @@ function RecentMenu({ tracks, onPlay }) {
   }, [open]);
   return (
     <div className="recent-menu-root" ref={rootRef}>
-      <IconButton className={open ? 'active' : ''} label="最近播放" aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen((state) => !state)}><Clock3 size={18} /></IconButton>
-      <div className="recent-popover" data-open={open} role="dialog" aria-label="最近播放" aria-hidden={!open}>
-          <div className="recent-popover-title"><span>最近播放</span><small>{tracks.length} 首</small></div>
+      <IconButton className={open ? 'active' : ''} label="当前列表" aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen((state) => !state)}><ListMusic size={18} /></IconButton>
+      <div className="recent-popover" data-open={open} role="dialog" aria-label="当前列表" aria-hidden={!open}>
+          <div className="recent-popover-title"><span>当前列表</span><small>{tracks.length} 首</small></div>
           <div className="recent-popover-list">
             {tracks.length ? tracks.map((item) => (
               <button key={trackKey(item)} type="button" tabIndex={open ? 0 : -1} onClick={() => { onPlay(item); setOpen(false); }}>
@@ -1102,22 +1183,22 @@ function RecentMenu({ tracks, onPlay }) {
                 <span><strong>{item.title}</strong><small>{item.artist}</small></span>
                 <Play size={13} fill="currentColor" />
               </button>
-            )) : <div className="recent-empty">播放过的歌曲会出现在这里</div>}
+            )) : <div className="recent-empty">当前列表还没有歌曲</div>}
           </div>
       </div>
     </div>
   );
 }
 
-function MiniPlayer({ track, playing, currentTime, duration, onToggle, onPrevious, onNext, onOpen, onSeek, volume, onVolume, liked, onToggleLike, recent, onPlayRecent, playMode, onSetPlayMode }) {
+function MiniPlayer({ track, playing, currentTime, duration, onToggle, onPrevious, onNext, onOpen, onSeek, volume, onVolume, liked, onToggleLike, queue, onPlayQueue, playMode, onCyclePlayMode }) {
   return (
     <footer className="mini-player">
       <button className="mini-track" onClick={onOpen}><span className="mini-art"><img src={track.cover || rainIcon} alt="" /></span><span><strong>{track.title}</strong><small>{track.artist}</small></span></button>
       <div className="mini-center">
-        <div className="mini-controls"><IconButton className={`heart-button ${liked ? 'liked' : ''}`} label={liked ? '取消喜欢' : '加入喜欢的音乐'} aria-pressed={liked} onClick={onToggleLike}><Heart size={18} fill={liked ? 'currentColor' : 'none'} /></IconButton><IconButton label="上一首" onClick={onPrevious}><SkipBack size={17} fill="currentColor" /></IconButton><button className="mini-play" onClick={onToggle} aria-label={playing ? '暂停' : '播放'}>{playing ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}</button><IconButton label="下一首" onClick={onNext}><SkipForward size={17} fill="currentColor" /></IconButton><IconButton className={playMode === 'sequence' ? 'mode-active' : ''} label="按顺序播放" aria-pressed={playMode === 'sequence'} onClick={() => onSetPlayMode('sequence')}><ListOrdered size={18} /></IconButton></div>
-        <div className="mini-progress"><span>{formatTime(currentTime)}</span><div className="mini-scrubber"><div><i style={{ transform: `scaleX(${duration ? currentTime / duration : 0})` }} /></div><input aria-label="播放进度" type="range" min="0" max={duration || 1} step="0.1" value={Math.min(currentTime, duration || 1)} disabled={track.empty || !duration} onChange={(event) => onSeek(Number(event.target.value))} /></div><span>-{formatTime(Math.max(0, duration - currentTime))}</span></div>
+        <div className="mini-controls"><IconButton className={`heart-button ${liked ? 'liked' : ''}`} label={liked ? '取消喜欢' : '加入喜欢的音乐'} aria-pressed={liked} onClick={onToggleLike}><Heart size={18} fill={liked ? 'currentColor' : 'none'} /></IconButton><IconButton label="上一首" onClick={onPrevious}><SkipBack size={17} fill="currentColor" /></IconButton><button className="mini-play" onClick={onToggle} aria-label={playing ? '暂停' : '播放'}>{playing ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}</button><IconButton label="下一首" onClick={onNext}><SkipForward size={17} fill="currentColor" /></IconButton><IconButton className="mode-active" label={PLAY_MODE_META[playMode].label} aria-pressed="true" onClick={onCyclePlayMode}>{playMode === 'repeat' ? <Repeat1 size={18} /> : playMode === 'shuffle' ? <Shuffle size={18} /> : <ListOrdered size={18} />}</IconButton></div>
+        <div className="mini-progress"><span>{formatTime(currentTime)}</span><div className="mini-scrubber"><div><i style={{ transform: `scaleX(${duration ? currentTime / duration : 0})` }} /></div><input aria-label="播放进度" type="range" min="0" max={duration || 1} step="0.1" value={Math.min(currentTime, duration || 1)} disabled={track.empty || !duration} onChange={(event) => onSeek(Number(event.target.value))} /><span className="scrubber-thumb" style={{ left: `${Math.max(0, Math.min(100, duration ? (currentTime / duration) * 100 : 0))}%` }} /></div><span>-{formatTime(Math.max(0, duration - currentTime))}</span></div>
       </div>
-      <div className="mini-actions"><RecentMenu tracks={recent} onPlay={onPlayRecent} /><Volume2 size={17} /><input aria-label="音量" type="range" min="0" max="1" step="0.01" value={volume} onChange={(event) => onVolume(Number(event.target.value))} /></div>
+      <div className="mini-actions"><QueueMenu tracks={queue} onPlay={onPlayQueue} /><Volume2 size={17} /><input aria-label="音量" type="range" min="0" max="1" step="0.01" value={volume} onChange={(event) => onVolume(Number(event.target.value))} /></div>
     </footer>
   );
 }
@@ -1157,6 +1238,11 @@ function App() {
   const [avatar, setAvatar] = useState(() => localStorage.getItem('rain_profile_avatar') || '');
   const [listeningStats, setListeningStats] = useState(loadListeningStats);
   const [quota, setQuota] = useState({ connected: false, state: 'checking' });
+  const [updateInfo, setUpdateInfo] = useState(null);
+  const [updateChecking, setUpdateChecking] = useState(false);
+  const [updateDownloading, setUpdateDownloading] = useState(false);
+  const [updateProgress, setUpdateProgress] = useState(0);
+  const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
   const audioRef = useRef(null);
   const loadedAudioUrlRef = useRef('');
   const pendingSeekRef = useRef(null);
@@ -1181,6 +1267,15 @@ function App() {
       removeQuotaListener();
       removeCloseListener();
     };
+  }, []);
+  useEffect(() => {
+    void checkForUpdates().then((result) => {
+      if (result.ok && result.update) {
+        setUpdateInfo(result.update);
+        setUpdateDialogOpen(true);
+      }
+    });
+    return onUpdateProgress(({ percent }) => setUpdateProgress(percent));
   }, []);
   useEffect(() => {
     const savedTracks = [...liked, ...recent];
@@ -1308,6 +1403,11 @@ function App() {
     setPlayMode(mode);
     notify(PLAY_MODE_META[mode].toast, 'success');
   };
+  const cyclePlayMode = () => {
+    const order = ['sequence', 'shuffle', 'repeat'];
+    const next = order[(order.indexOf(playMode) + 1) % order.length];
+    changePlayMode(next);
+  };
   const changeShortcut = (action, candidate) => {
     if (!DEFAULT_SHORTCUTS[action] || !candidate?.code) return { ok: false, message: '没有识别到有效按键，请重新输入' };
     if (candidate.alt && candidate.code === 'F4') return { ok: false, message: 'Alt + F4 是 Windows 关闭窗口快捷键，不能覆盖' };
@@ -1323,6 +1423,36 @@ function App() {
   const openAccount = async () => {
     await openQuotaLogin();
     notify('请在打开的 API 窗口中登录，额度会自动同步');
+  };
+
+  const checkForAppUpdate = async () => {
+    setUpdateChecking(true);
+    const result = await checkForUpdates();
+    setUpdateChecking(false);
+    if (!result.ok) return notify(result.message || '检查更新失败', 'error');
+    if (result.update) {
+      setUpdateInfo(result.update);
+      setUpdateDialogOpen(true);
+      return;
+    }
+    notify('当前已经是最新版本', 'success');
+  };
+
+  const handleUpdateNow = async () => {
+    if (updateDownloading) return;
+    setUpdateDownloading(true);
+    setUpdateProgress(0);
+    const result = await downloadUpdate();
+    if (!result.ok) {
+      setUpdateDownloading(false);
+      return notify(result.message || '下载更新失败', 'error');
+    }
+    setUpdateProgress(100);
+    const install = await installUpdate();
+    if (!install.ok) {
+      setUpdateDownloading(false);
+      return notify(install.message || '安装更新失败', 'error');
+    }
   };
 
   const resolveTrack = async (item, nextQuality = quality) => {
@@ -1400,6 +1530,68 @@ function App() {
         setPlaying(true);
       }
       notify(`正在播放 · ${item.title}`, 'success');
+    } catch (error) {
+      notify(error.message, 'error');
+    } finally {
+      setActiveRequest('');
+    }
+  };
+
+  const playQueueItem = async (item) => {
+    if (!item) return;
+    setActiveRequest(trackKey(item));
+    try {
+      if (item.source === 'local' || item.audioUrl) {
+        setCurrent(item);
+        setQuality(item.source === 'local' ? 'local' : (item.quality || quality));
+        setCurrentTime(0);
+        pendingSeekRef.current = 0;
+        setDuration(item.duration || 0);
+        setPlaying(true);
+      } else {
+        const nextQuality = item.quality || defaultQualities[item.source] || DEFAULT_QUALITIES[item.source] || 'flac';
+        const detail = await resolveTrack(item, nextQuality);
+        setCurrent(detail);
+        setQuality(nextQuality);
+        setCurrentTime(0);
+        pendingSeekRef.current = 0;
+        setDuration(detail.duration > 10000 ? detail.duration / 1000 : detail.duration || 0);
+        setPlaying(true);
+      }
+      notify(`正在播放 · ${item.title}`, 'success');
+    } catch (error) {
+      notify(error.message, 'error');
+    } finally {
+      setActiveRequest('');
+    }
+  };
+
+  const playAll = async (tracks) => {
+    const items = (tracks || []).filter((item) => item && !item.empty);
+    if (!items.length) return notify('列表中没有歌曲');
+    setPlayMode('sequence');
+    setQueue(items);
+    const first = items[0];
+    setActiveRequest(trackKey(first));
+    try {
+      if (first.source === 'local' || first.audioUrl) {
+        setCurrent(first);
+        setQuality(first.source === 'local' ? 'local' : (first.quality || quality));
+        setCurrentTime(0);
+        pendingSeekRef.current = 0;
+        setDuration(first.duration || 0);
+        setPlaying(true);
+      } else {
+        const nextQuality = first.quality || defaultQualities[first.source] || DEFAULT_QUALITIES[first.source] || 'flac';
+        const detail = await resolveTrack(first, nextQuality);
+        setCurrent(detail);
+        setQuality(nextQuality);
+        setCurrentTime(0);
+        pendingSeekRef.current = 0;
+        setDuration(detail.duration > 10000 ? detail.duration / 1000 : detail.duration || 0);
+        setPlaying(true);
+      }
+      notify(`全部播放 · ${items.length} 首`, 'success');
     } catch (error) {
       notify(error.message, 'error');
     } finally {
@@ -1545,6 +1737,10 @@ function App() {
     notify(`已用一次调用导入 ${playlist.tracks.length} 首歌曲`, 'success');
     return true;
   };
+  const removePlaylist = (playlist) => {
+    setPlaylists((items) => items.filter((item) => !(item.source === playlist.source && item.id === playlist.id && item.url === playlist.url)));
+    notify('已删除歌单', 'neutral');
+  };
 
   const handleAudioTimeUpdate = (event) => {
     const nextTime = event.currentTarget.currentTime;
@@ -1600,13 +1796,14 @@ function App() {
     return () => window.removeEventListener('keydown', onShortcutKeyDown, true);
   }, [shortcuts, current.empty, current.audioUrl, current.id, current.source, playing, queue, playMode, quality, volume]);
 
-  const nonSearchView = view === 'settings' ? <SettingsView hasApiKey={hasApiKey} onSaved={setHasApiKey} notify={notify} onOpenAccount={openAccount} closeAction={closeAction} onCloseAction={changeCloseAction} avatar={avatar} onAvatar={setAvatar} userName={quota.userName} shortcuts={shortcuts} onShortcut={changeShortcut} onResetShortcuts={resetShortcuts} defaultQualities={defaultQualities} onDefaultQuality={changeDefaultQuality} />
-    : view === 'liked' ? <LikesView liked={liked} onPlay={playSavedTrack} onRemove={toggleLike} activeRequest={activeRequest} />
+  const nonSearchView = view === 'settings' ? <SettingsView hasApiKey={hasApiKey} onSaved={setHasApiKey} notify={notify} onOpenAccount={openAccount} closeAction={closeAction} onCloseAction={changeCloseAction} avatar={avatar} onAvatar={setAvatar} userName={quota.userName} shortcuts={shortcuts} onShortcut={changeShortcut} onResetShortcuts={resetShortcuts} defaultQualities={defaultQualities} onDefaultQuality={changeDefaultQuality} onCheckUpdate={checkForAppUpdate} updateChecking={updateChecking} />
+    : view === 'liked' ? <LikesView liked={liked} onPlay={playSavedTrack} onPlayAll={playAll} onRemove={toggleLike} activeRequest={activeRequest} />
+    : view === 'recent' ? <RecentView tracks={recent} onPlay={playSavedTrack} onPlayAll={playAll} onBack={() => navigate('library')} activeRequest={activeRequest} />
     : view === 'albums' ? <EntityLibraryView title="专辑" subtitle="在搜索的专辑分类中点击爱心收藏。" items={savedAlbums} kind="album" onToggle={toggleEntity(setSavedAlbums)} onOpen={openSavedEntity} />
     : view === 'artists' ? <EntityLibraryView title="歌手" subtitle="在搜索的歌手分类中点击爱心收藏。" items={savedArtists} kind="artist" onToggle={toggleEntity(setSavedArtists)} onOpen={openSavedEntity} />
-    : view === 'local' ? <LocalMusicView tracks={localTracks} onImport={importLocal} onPlay={playSavedTrack} activeRequest={activeRequest} />
-    : view === 'playlists' ? <PlaylistsView playlists={playlists} onAdd={addPlaylist} onPlay={playSavedTrack} activeRequest={activeRequest} loading={playlistLoading} />
-    : <LibraryView current={current} onOpenLyrics={openLyrics} onOpenLikes={() => navigate('liked')} onImport={importLocal} likedCount={liked.length} avatar={avatar} userName={quota.userName} stats={listeningStats} />;
+    : view === 'local' ? <LocalMusicView tracks={localTracks} onImport={importLocal} onPlay={playSavedTrack} onPlayAll={playAll} activeRequest={activeRequest} />
+    : view === 'playlists' ? <PlaylistsView playlists={playlists} onAdd={addPlaylist} onPlay={playSavedTrack} onPlayAll={playAll} onRemove={removePlaylist} activeRequest={activeRequest} loading={playlistLoading} />
+    : <LibraryView current={current} onOpenLikes={() => navigate('liked')} onOpenRecent={() => navigate('recent')} onImport={importLocal} likedCount={liked.length} avatar={avatar} userName={quota.userName} stats={listeningStats} />;
 
   return (
     <div className={`app-shell ${lyricsMounted ? 'lyrics-mode' : ''}`} style={rootStyle}>
@@ -1617,7 +1814,7 @@ function App() {
         <div className="brand"><span className="brand-mark rain-brand-mark"><img src={rainIcon} alt="" /></span><span>Rain</span></div>
         <nav>
           <p>浏览</p>
-          <button className={view === 'library' && !lyricsMounted ? 'active' : ''} onClick={() => navigate('library')}><Home size={18} />现在就听</button>
+          <button className={view === 'library' && !lyricsMounted ? 'active' : ''} onClick={() => navigate('library')}><Home size={18} />首页</button>
           <button className={view === 'search' && !lyricsMounted ? 'active' : ''} onClick={() => navigate('search')}><Search size={18} />搜索</button>
           <p>资料库</p>
           <button className={view === 'liked' && !lyricsMounted ? 'active' : ''} onClick={() => navigate('liked')}><Heart size={18} />喜欢的音乐</button>
@@ -1629,15 +1826,16 @@ function App() {
         <button className={`settings-link ${view === 'settings' && !lyricsMounted ? 'active' : ''}`} onClick={() => navigate('settings')}><Settings size={18} />设置<span className={`connection-dot ${hasApiKey ? 'on' : ''}`} /></button>
       </aside>
       <main className="main-panel">
-        <div className="base-view search-keeper" hidden={view !== 'search'}><SearchView active={view === 'search'} hasApiKey={hasApiKey} onNeedKey={needKey} onSelect={selectSearchResult} activeRequest={activeRequest} quota={quota} onOpenAccount={openAccount} savedArtists={savedArtists} savedAlbums={savedAlbums} onSaveArtist={toggleEntity(setSavedArtists)} onSaveAlbum={toggleEntity(setSavedAlbums)} entityRequest={entityRequest} /></div>
+        <div className="base-view search-keeper" hidden={view !== 'search'}><SearchView active={view === 'search'} hasApiKey={hasApiKey} onNeedKey={needKey} onSelect={selectSearchResult} onPlayAll={playAll} activeRequest={activeRequest} quota={quota} onOpenAccount={openAccount} savedArtists={savedArtists} savedAlbums={savedAlbums} onSaveArtist={toggleEntity(setSavedArtists)} onSaveAlbum={toggleEntity(setSavedAlbums)} entityRequest={entityRequest} liked={liked} onToggleLike={toggleLike} /></div>
         <div className="base-view" hidden={view === 'search'}>{nonSearchView}</div>
         {lyricsMounted && <LyricsView visible={lyricsVisible} track={current} currentTime={currentTime} duration={duration} playing={playing} onToggle={togglePlay} onPrevious={() => playAdjacent(-1)} onNext={() => playAdjacent(1)} onClose={closeLyrics} onSeek={seek} quality={quality} onQuality={changeQuality} qualityLoading={qualityLoading} playMode={playMode} onSetPlayMode={changePlayMode} />}
       </main>
-      {!lyricsMounted && <MiniPlayer track={current} playing={playing} currentTime={currentTime} duration={duration} onToggle={togglePlay} onPrevious={() => playAdjacent(-1)} onNext={() => playAdjacent(1)} onOpen={openLyrics} onSeek={seek} volume={volume} onVolume={setVolume} liked={!current.empty && liked.some((track) => trackKey(track) === trackKey(current))} onToggleLike={() => toggleLike(current)} recent={recent} onPlayRecent={playSavedTrack} playMode={playMode} onSetPlayMode={changePlayMode} />}
+      {!lyricsMounted && <MiniPlayer track={current} playing={playing} currentTime={currentTime} duration={duration} onToggle={togglePlay} onPrevious={() => playAdjacent(-1)} onNext={() => playAdjacent(1)} onOpen={openLyrics} onSeek={seek} volume={volume} onVolume={setVolume} liked={!current.empty && liked.some((track) => trackKey(track) === trackKey(current))} onToggleLike={() => toggleLike(current)} queue={queue} onPlayQueue={playQueueItem} playMode={playMode} onCyclePlayMode={cyclePlayMode} />}
       <audio ref={audioRef} onTimeUpdate={handleAudioTimeUpdate} onLoadedMetadata={handleLoadedMetadata} onEnded={handleEnded} />
       {volumeFeedback !== null && <div className={`volume-feedback ${lyricsMounted ? 'in-lyrics' : ''}`} role="status" aria-live="polite"><Volume2 size={17} /><div><span>音量</span><strong>{volumeFeedback}%</strong><i><b style={{ transform: `scaleX(${volumeFeedback / 100})` }} /></i></div></div>}
       {toast && <div className={`toast ${toast.type}`} role="status"><span>{toast.type === 'success' ? <Check size={16} /> : toast.type === 'error' ? '!' : <Sparkles size={16} />}</span>{toast.message}</div>}
       {closeDialogOpen && <CloseBehaviorDialog onChoose={chooseCloseAction} onCancel={cancelClose} />}
+      {updateDialogOpen && updateInfo && <UpdateDialog info={updateInfo} downloading={updateDownloading} progress={updateProgress} onClose={() => setUpdateDialogOpen(false)} onUpdate={handleUpdateNow} />}
     </div>
   );
 }

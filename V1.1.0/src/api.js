@@ -56,6 +56,22 @@ export async function openQuotaLogin() {
   return { ok: true };
 }
 
+export async function checkForUpdates() {
+  return bridge?.checkForUpdates ? bridge.checkForUpdates() : { ok: false, message: '请使用 Rain 桌面版检查更新' };
+}
+
+export async function downloadUpdate() {
+  return bridge?.downloadUpdate ? bridge.downloadUpdate() : { ok: false, message: '请使用 Rain 桌面版下载更新' };
+}
+
+export async function installUpdate() {
+  return bridge?.installUpdate ? bridge.installUpdate() : { ok: false, message: '请使用 Rain 桌面版安装更新' };
+}
+
+export function onUpdateProgress(callback) {
+  return bridge?.onUpdateProgress ? bridge.onUpdateProgress(callback) : () => {};
+}
+
 export function onQuotaUpdated(callback) {
   return bridge?.onQuotaUpdated ? bridge.onQuotaUpdated(callback) : () => {};
 }
@@ -136,6 +152,7 @@ function albumName(item, fallback = '未知专辑') {
 function coverUrl(item) {
   let cover = first(
     item?.cover, item?.pic, item?.picUrl, item?.picurl, item?.image, item?.img,
+    item?.coverImgUrl, item?.coverimgurl,
     item?.coverUrl, item?.cover_url, item?.albumCover, item?.album_cover, item?.sizable_cover,
     item?.imgurl, item?.imgUrl, item?.trans_param?.union_cover,
     item?.album?.picUrl, item?.album?.picurl, item?.album?.cover, item?.album?.coverUrl,

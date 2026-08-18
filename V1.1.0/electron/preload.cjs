@@ -22,10 +22,18 @@ contextBridge.exposeInMainWorld('musicBridge', {
   putCachedSearch: (key, results) => ipcRenderer.invoke('cache:put-search', key, results),
   getQuotaStatus: () => ipcRenderer.invoke('quota:get'),
   openQuotaLogin: () => ipcRenderer.invoke('quota:open-login'),
+  checkForUpdates: () => ipcRenderer.invoke('updates:check'),
+  downloadUpdate: () => ipcRenderer.invoke('updates:download'),
+  installUpdate: () => ipcRenderer.invoke('updates:install'),
   onQuotaUpdated: (callback) => {
     const listener = (_event, status) => callback(status);
     ipcRenderer.on('quota:updated', listener);
     return () => ipcRenderer.removeListener('quota:updated', listener);
+  },
+  onUpdateProgress: (callback) => {
+    const listener = (_event, status) => callback(status);
+    ipcRenderer.on('updates:progress', listener);
+    return () => ipcRenderer.removeListener('updates:progress', listener);
   },
   onCloseRequested: (callback) => {
     const listener = () => callback();
