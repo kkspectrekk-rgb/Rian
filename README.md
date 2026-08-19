@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="./V1.1.0/src/assets/rain-icon.png" width="112" height="112" alt="Rain 图标">
+  <img src="./V1.1.2/src/assets/rain-icon.png" width="112" height="112" alt="Rain 图标">
 
   # Rain
 
@@ -7,12 +7,12 @@
 
   搜索、播放、逐字歌词与封面动态色彩，都集中在一个安静而流畅的界面中。
 
-  ![Version](https://img.shields.io/badge/version-1.1.0-18181b?style=flat-square)
+  ![Version](https://img.shields.io/badge/version-1.1.2-18181b?style=flat-square)
   ![Platform](https://img.shields.io/badge/platform-Windows-0078D4?style=flat-square&logo=windows11&logoColor=white)
   ![Electron](https://img.shields.io/badge/Electron-34-47848F?style=flat-square&logo=electron&logoColor=white)
   ![React](https://img.shields.io/badge/React-18-20232A?style=flat-square&logo=react&logoColor=61DAFB)
 
-  [![Download Rain](https://img.shields.io/badge/Download-Rain%201.1.0-ffffff?style=for-the-badge&logo=github&logoColor=black)](https://github.com/kkspectrekk-rgb/Rian/releases/latest)
+  [![Download Rain](https://img.shields.io/badge/Download-Rain%201.1.2-ffffff?style=for-the-badge&logo=github&logoColor=black)](https://github.com/kkspectrekk-rgb/Rian/releases/latest)
 </div>
 
 ---
@@ -44,27 +44,28 @@ Rain 不是网页播放器。它以独立 Windows 桌面程序运行，API 请�
 - **托盘与关闭偏好**：关闭窗口时可选择退出或最小化到系统托盘，也可记住选择并在设置中随时更改。
 - **系统辅助设置**：兼容 Windows 减少动态效果、减少透明度和高对比度偏好。
 - **可自定义快捷键**：默认使用空格播放/暂停，Alt+方向键切歌与调节音量；设置页支持录制组合键并在松键后保存，快捷键调节音量时会显示当前百分比。
-- **自动更新**：启动时检测 GitHub 最新便携版，发现新版后可下载并自动替换旧 EXE，重启后保留本机缓存和 API Key。
+- **更新方式**：安装版可在设置中检查更新，并下载运行安装包；旧便携版通过 V1.1.0.1 公告版引导切换到安装版。
 
-## V1.1.0 更新
+## V1.1.2 更新
 
-- 歌词改为逐行滚动，取消逐字白色高亮和上下回落，并优化滚动渲染。
-- 我的歌单点击进入独立详情页，支持全部播放和删除歌单。
-- 搜索结果的每首单曲新增喜欢收藏按钮。
-- 首页改为新的资料库入口，最近播放独立成页；头像移至标题旁并完整铺满圆形。
-- 设置页新增检查更新，启动时会检测 GitHub 最新便携版并支持自动替换旧 EXE。
+- 改为 Windows 安装版发布。
+- 安装版默认在安装目录创建 RainCache 缓存文件夹，设置页可更改缓存路径和清理缓存。
+- 支持 QQ 音乐歌单长链接导入，并支持新建自定义歌单。
+- 歌词页更多按钮可收藏歌曲到已有或新建歌单。
+- 本地歌曲支持全选、批量删除，操作按钮统一放在筛选框下方。
+- 修复安装更新后本地歌曲封面丢失的问题。
 
-完整内容请查看 [更新日志 v1.1.0](./V1.1.0/更新日志v1.1.0.txt)。
+完整内容请查看 [更新日志 v1.1.2](./V1.1.2/更新日志v1.1.2.txt)。
 
 ## 下载 Rain
 
-[**前往 GitHub Releases 下载 Rain 1.1.0 →**](https://github.com/kkspectrekk-rgb/Rian/releases/latest)
+[**前往 GitHub Releases 下载 Rain 1.1.2 →**](https://github.com/kkspectrekk-rgb/Rian/releases/latest)
 
-在最新版发行页面的 **Assets** 区域选择 `Rain.1.1.0.exe`。这是 Windows x64 免安装便携版，下载后双击即可启动，文件约 300 MB。
+在最新版发行页面的 **Assets** 区域选择 `Rain.1.1.2-setup.exe`。这是 Windows x64 安装版。
 
-也可以使用 [Rain 1.1.0.exe 直接下载链接](https://github.com/kkspectrekk-rgb/Rian/releases/download/v1.1.0/Rain.1.1.0.exe)。
+也可以使用 [Rain 1.1.2-setup.exe 直接下载链接](https://github.com/kkspectrekk-rgb/Rian/releases/download/v1.1.2/Rain.1.1.2-setup.exe)。
 
-> 当前程序未进行代码签名，Windows 首次运行时可能显示“未知发布者”提示。文件 SHA-256：`AE40664895AD5BEE0D9E5FA9799103DEE175DB00317CA0C1F4281C7FAD973EB7`
+> 当前程序未进行代码签名，Windows 首次运行时可能显示“未知发布者”提示。旧便携版用户可先使用 `V1.1.0.1` 公告版查看迁移说明。
 
 ## 快速开始
 
@@ -78,7 +79,7 @@ Rain 不是网页播放器。它以独立 Windows 桌面程序运行，API 请�
 
 ```powershell
 git clone https://github.com/kkspectrekk-rgb/Rian.git
-cd Rian\V1.1.0
+cd Rian\V1.1.2
 pnpm install
 pnpm dev
 ```
@@ -86,7 +87,7 @@ pnpm dev
 ### 构建便携版
 
 ```powershell
-cd V1.1.0
+cd V1.1.2
 pnpm install
 pnpm dist:win
 ```
@@ -94,7 +95,7 @@ pnpm dist:win
 构建完成后，免安装程序会生成在：
 
 ```text
-V1.1.0\release\Rain.1.1.0.exe
+V1.1.2\release\Rain.1.1.2-setup.exe
 ```
 
 双击即可启动，不需要安装。仓库不提交 `node_modules`、构建目录或 EXE 文件，避免存储重复依赖和大体积二进制文件。
@@ -138,13 +139,14 @@ API Key 通过 Electron 主进程调用 Windows `safeStorage` 加密后保存在
 ```text
 Rian/
 ├─ README.md                    # 仓库主页说明
-├─ V1.1.0/
+├─ V1.1.0.1/                  # 便携公告版，提示旧用户切换到安装版
+├─ V1.1.2/                    # 当前安装版
 │  ├─ electron/                # Electron 主进程、窗口与本地缓存
 │  ├─ src/                     # React 界面、API 适配与歌词解析
 │  ├─ build/                   # Rain 应用图标
 │  ├─ scripts/                 # 图标生成脚本
 │  ├─ package.json             # 依赖与便携版构建配置
-│  └─ 更新日志v1.1.0.txt
+│  └─ 更新日志v1.1.2.txt
 └─ .gitignore
 ```
 
@@ -156,11 +158,11 @@ Rian/
 | React | 播放器界面和状态管理 |
 | Vite | 开发服务器与前端构建 |
 | Lucide React | 界面图标 |
-| electron-builder | 生成 Windows 免安装便携版 |
+| electron-builder | 生成 Windows NSIS 安装版 |
 
 ## 版本管理
 
-仓库当前只保留最新版本 **V1.1.0**。后续每次新增或修改功能都会在根目录创建新的版本文件夹，并在对应目录中附带同版本更新日志。
+仓库包含 **V1.1.0.1** 便携公告版和 **V1.1.2** 安装版；旧便携版用户先查看 V1.1.0.1 公告，再下载安装版。
 
 ---
 

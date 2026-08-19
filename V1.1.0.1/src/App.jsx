@@ -816,7 +816,7 @@ function UpdateDialog({ info, downloading, progress, onClose, onUpdate }) {
         {downloading ? (
           <div className="update-progress"><span>{progress}%</span><i><b style={{ transform: `scaleX(${progress / 100})` }} /></i></div>
         ) : (
-          <button className="primary-button" type="button" onClick={onUpdate}><Download size={16} />立即更新</button>
+          <button className="primary-button" type="button" onClick={onUpdate}><Download size={16} />前往下载安装版</button>
         )}
         {!downloading && <button className="dialog-cancel" type="button" onClick={onClose}>稍后再说</button>}
       </div>
@@ -1438,21 +1438,9 @@ function App() {
     notify('当前已经是最新版本', 'success');
   };
 
-  const handleUpdateNow = async () => {
-    if (updateDownloading) return;
-    setUpdateDownloading(true);
-    setUpdateProgress(0);
-    const result = await downloadUpdate();
-    if (!result.ok) {
-      setUpdateDownloading(false);
-      return notify(result.message || '下载更新失败', 'error');
-    }
-    setUpdateProgress(100);
-    const install = await installUpdate();
-    if (!install.ok) {
-      setUpdateDownloading(false);
-      return notify(install.message || '安装更新失败', 'error');
-    }
+  const handleUpdateNow = () => {
+    window.open('https://github.com/kkspectrekk-rgb/Rian/releases/latest', '_blank', 'noopener,noreferrer');
+    notify('已打开下载页，请下载安装版客户端');
   };
 
   const resolveTrack = async (item, nextQuality = quality) => {

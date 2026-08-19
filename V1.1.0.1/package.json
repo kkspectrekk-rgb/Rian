@@ -1,6 +1,6 @@
 {
   "name": "rain-music",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "private": true,
   "description": "Rain — a Windows music player inspired by Apple Music.",
   "author": "Rain",
@@ -42,7 +42,8 @@
       ]
     },
     "portable": {
-      "unpackDirName": false
+      "unpackDirName": false,
+      "artifactName": "Rain.1.1.0.1.exe"
     }
   }
 }
