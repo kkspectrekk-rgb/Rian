@@ -92,13 +92,12 @@ pnpm install
 pnpm dist:win
 ```
 
-构建完成后，免安装程序会生成在：
+构建完成后，安装程序会生成在：
 
 ```text
 V1.1.2\release\Rain.1.1.2-setup.exe
 ```
 
-双击即可启动，不需要安装。仓库不提交 `node_modules`、构建目录或 EXE 文件，避免存储重复依赖和大体积二进制文件。
 
 ## 配置音乐 API
 
