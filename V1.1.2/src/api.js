@@ -7,6 +7,10 @@ export async function getSettings() {
   return { hasApiKey: Boolean(localStorage.getItem('aurora_api_key')), closeAction: localStorage.getItem('rain_close_action') || 'ask' };
 }
 
+export async function getAppVersion() {
+  return bridge?.getAppVersion ? bridge.getAppVersion() : { version: '1.1.2' };
+}
+
 export async function saveApiKey(apiKey) {
   if (bridge) return bridge.saveApiKey(apiKey);
   if (!/^chksz_[A-Za-z0-9_-]+$/.test(apiKey.trim())) return { ok: false, message: 'API Key 格式应为 chksz_ 开头。' };
@@ -54,6 +58,24 @@ export async function openQuotaLogin() {
   if (bridge) return bridge.openQuotaLogin();
   window.open('https://api.chksz.com/login.html', '_blank', 'noopener,noreferrer');
   return { ok: true };
+}
+
+export async function getNeteaseStatus() {
+  return bridge?.getNeteaseStatus ? bridge.getNeteaseStatus() : { connected: false, state: 'unavailable' };
+}
+
+export async function openNeteaseLogin() {
+  if (bridge?.openNeteaseLogin) return bridge.openNeteaseLogin();
+  window.open('https://music.163.com/', '_blank', 'noopener,noreferrer');
+  return { ok: true };
+}
+
+export async function getNeteaseDaily(options = {}) {
+  return bridge?.getNeteaseDaily ? bridge.getNeteaseDaily(options) : { ok: false, connected: false, tracks: [], message: '请使用 Rain 桌面版读取每日推荐' };
+}
+
+export function onNeteaseStatus(callback) {
+  return bridge?.onNeteaseStatus ? bridge.onNeteaseStatus(callback) : () => {};
 }
 
 export async function checkForUpdates() {

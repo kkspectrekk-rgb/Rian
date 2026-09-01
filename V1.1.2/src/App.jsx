@@ -51,10 +51,13 @@ import {
   clearApiKey,
   downloadUpdate,
   extractLyricPayload,
+  getAppVersion,
   getCachedSearch,
   getCachedTrack,
   getCacheInfo,
   getLocalFilePath,
+  getNeteaseDaily,
+  getNeteaseStatus,
   getQQPlaylist,
   readLocalMetadata,
   getQuotaStatus,
@@ -65,9 +68,11 @@ import {
   normalizePlaylist,
   normalizeSearch,
   onCloseRequested,
+  onNeteaseStatus,
   onQuotaUpdated,
   onUpdateProgress,
   openQuotaLogin,
+  openNeteaseLogin,
   putCachedSearch,
   putCachedTrack,
   installUpdate,
@@ -104,6 +109,21 @@ const QUALITY_OPTIONS = {
 };
 
 const DEFAULT_QUALITIES = { netease: 'lossless', qq: 'flac', kugou: 'flac' };
+const RELEASE_NOTES = [
+  '歌词详细页现在覆盖整个软件，修复背景透明与页面重叠。',
+  '歌词页加入音量调节，并会记住翻译显示开关。',
+  '首页加入网易云音乐每日推荐与登录状态。',
+];
+
+function loadLyricsTranslationSetting() {
+  return localStorage.getItem('rain_lyrics_translation_v1') !== 'off';
+}
+
+function dailyRefreshKey(date = new Date()) {
+  const effective = new Date(date);
+  if (effective.getHours() < 6) effective.setDate(effective.getDate() - 1);
+  return localDateKey(effective);
+}
 
 function loadDefaultQualities() {
   try {
@@ -517,7 +537,7 @@ function QuotaStatus({ quota, onConnect }) {
   );
 }
 
-function TrackRows({ tracks, emptyTitle, emptyCopy, onPlay, activeRequest, onRemove, selectable = false, selectedKeys = [], onToggleSelect }) {
+function TrackRows({ tracks, emptyTitle, emptyCopy, onPlay, activeRequest, onRemove, selectable = false, selectedKeys = [], onToggleSelect, queueContextKey = '' }) {
   if (!tracks.length) {
     return <div className="empty-state"><Heart /><strong>{emptyTitle}</strong><span>{emptyCopy}</span></div>;
   }
@@ -526,7 +546,7 @@ function TrackRows({ tracks, emptyTitle, emptyCopy, onPlay, activeRequest, onRem
       {tracks.map((item, index) => (
         <div className={`saved-track-row ${selectable ? 'selectable' : ''}`} key={trackKey(item)}>
           {selectable && <button className="track-select" type="button" aria-pressed={selectedKeys.includes(trackKey(item))} onClick={() => onToggleSelect?.(trackKey(item))}>{selectedKeys.includes(trackKey(item)) ? <Check size={15} /> : null}</button>}
-          <button className="saved-track-main" onClick={() => onPlay(item)} disabled={Boolean(activeRequest)}>
+          <button className="saved-track-main" onClick={() => onPlay(item, tracks, queueContextKey)} disabled={Boolean(activeRequest)}>
             <span className="result-index">{activeRequest === trackKey(item) ? <LoaderCircle className="spin" size={16} /> : String(index + 1).padStart(2, '0')}</span>
             <span className="result-art" style={{ backgroundImage: `url(${item.cover || rainIcon})` }} />
             <span className="result-title"><strong>{item.title}</strong><small>{item.artist}</small></span>
@@ -842,6 +862,20 @@ function UpdateDialog({ info, downloading, progress, onClose, onUpdate }) {
   );
 }
 
+function ReleaseAnnouncementDialog({ version, onClose }) {
+  return (
+    <div className="close-dialog-backdrop release-announcement-backdrop" role="presentation" onPointerDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <div className="close-dialog release-announcement" role="dialog" aria-modal="true" aria-labelledby="release-announcement-title">
+        <div className="close-dialog-icon"><Sparkles size={22} /></div>
+        <p className="release-eyebrow">RAIN {version}</p>
+        <h2 id="release-announcement-title">本次更新</h2>
+        <ul>{RELEASE_NOTES.map((note) => <li key={note}>{note}</li>)}</ul>
+        <button className="primary-button" type="button" autoFocus onClick={onClose}><Check size={16} />知道了</button>
+      </div>
+    </div>
+  );
+}
+
 function SearchView({ active, hasApiKey, onNeedKey, onSelect, onPlayAll, activeRequest, quota, onOpenAccount, savedArtists, savedAlbums, onSaveArtist, onSaveAlbum, entityRequest, liked, onToggleLike }) {
   const [query, setQuery] = useState('');
   const [source, setSource] = useState('netease');
@@ -1005,7 +1039,7 @@ function SearchView({ active, hasApiKey, onNeedKey, onSelect, onPlayAll, activeR
   );
 }
 
-function LibraryView({ onImport, onOpenLikes, onOpenRecent, current, likedCount, avatar, userName, stats }) {
+function LibraryView({ onImport, onOpenDaily, onOpenRecent, current, avatar, userName, stats }) {
   const fileInput = useRef(null);
   const [now, setNow] = useState(new Date());
   useEffect(() => { const timer = setInterval(() => setNow(new Date()), 30000); return () => clearInterval(timer); }, []);
@@ -1015,10 +1049,32 @@ function LibraryView({ onImport, onOpenLikes, onOpenRecent, current, likedCount,
       <div className="section-title"><div className="section-title-copy"><div><h2>你的音乐</h2><p>本地收藏与最近播放</p></div><ProfileMenu avatar={avatar} userName={userName} stats={stats} /></div></div>
       <input ref={fileInput} onChange={onImport} className="sr-only" type="file" accept="audio/*" multiple />
       <div className="collection-grid">
-        <button className="collection-card favorite" onClick={onOpenLikes}><div className="collection-art"><Heart size={38} fill="white" /></div><strong>喜欢的音乐</strong><small>{likedCount ? `${likedCount} 首歌曲` : '你的收藏'}</small></button>
+        <button className="collection-card daily" onClick={onOpenDaily}><div className="collection-art"><Sparkles size={38} /></div><strong>每日推荐</strong><small>每天 06:00 更新</small></button>
         <button className="collection-card" onClick={onOpenRecent}><div className="collection-art recent" style={{ backgroundImage: `url(${current.cover})` }} /><strong>最近播放</strong><small>{current.title}</small></button>
         <button className="collection-card dashed" onClick={() => fileInput.current?.click()}><div className="collection-art import-art"><Upload size={30} /></div><strong>导入本地音乐</strong><small>MP3、FLAC、WAV 等</small></button>
       </div>
+    </section>
+  );
+}
+
+function DailyRecommendationsView({ status, tracks, loading, error, onLogin, onRefresh, onPlay, onPlayAll, onBack, activeRequest }) {
+  const connected = Boolean(status.connected);
+  return (
+    <section className="liked-view daily-view content-enter">
+      <header className="page-heading daily-heading">
+        <button className="entity-back daily-back" type="button" onClick={onBack}><ArrowLeft size={18} />返回首页</button>
+        <div className="liked-symbol daily-symbol"><Sparkles size={34} /></div>
+        <div><p>网易云音乐</p><h1>每日推荐</h1><span>{tracks.length ? `${tracks.length} 首歌曲 · 每天 06:00 更新` : '登录后读取你的专属推荐'}</span></div>
+        <div className="daily-heading-actions">
+          <button className="netease-login-button" type="button" data-connected={connected} onClick={onLogin}><span className="netease-status-dot" />网易云音乐</button>
+          {connected && <button className="secondary-button daily-refresh" type="button" disabled={loading} onClick={() => onRefresh(true)}>{loading ? <LoaderCircle className="spin" size={14} /> : <RotateCcw size={14} />}刷新</button>}
+          <button className="primary-button" type="button" disabled={!tracks.length || loading} onClick={() => onPlayAll(tracks)}><Play size={16} />全部播放</button>
+        </div>
+      </header>
+      {!connected && !loading && <div className="daily-login-state"><span className="netease-status-dot" /><strong>{status.state === 'expired' ? '登录已失效' : '尚未登录网易云音乐'}</strong><p>点击“网易云音乐”打开登录窗口；登录 Cookie 仅保存在这台设备上。</p></div>}
+      {loading && <div className="empty-state"><LoaderCircle className="spin" /><strong>正在读取每日推荐</strong><span>正在同步网易云音乐今天的列表…</span></div>}
+      {!loading && connected && error && <div className="empty-state error-state"><span className="error-dot">!</span><strong>暂时无法读取每日推荐</strong><span>{error}</span></div>}
+      {!loading && connected && !error && <TrackRows tracks={tracks} onPlay={onPlay} activeRequest={activeRequest} emptyTitle="今天还没有推荐歌曲" emptyCopy="可以稍后刷新，或重新登录网易云音乐。" />}
     </section>
   );
 }
@@ -1084,7 +1140,7 @@ function LocalMusicView({ tracks, onImport, onPlay, onPlayAll, onDelete, activeR
   </section>;
 }
 
-function PlaylistDetailView({ playlist, onBack, onPlay, onPlayAll, activeRequest }) {
+function PlaylistDetailView({ playlist, queueContextKey, onBack, onPlay, onPlayAll, activeRequest }) {
   return (
     <section className="playlists-view playlist-detail-view content-enter">
       <header className="entity-detail-heading">
@@ -1092,9 +1148,9 @@ function PlaylistDetailView({ playlist, onBack, onPlay, onPlayAll, activeRequest
       </header>
       <div className="entity-detail-hero playlist-detail-hero">
         <span className="playlist-detail-cover" style={{ backgroundImage: `url(${playlist.cover || rainIcon})` }} />
-        <div><p>歌单 · {SOURCE_META[playlist.source]?.label}</p><h1>{playlist.title}</h1><span>{playlist.tracks?.length || 0} 首歌曲</span>{playlist.tracks?.length > 0 && <button className="primary-button play-all-inline" type="button" onClick={() => onPlayAll(playlist.tracks)}><Play size={16} />全部播放</button>}</div>
+        <div><p>歌单 · {SOURCE_META[playlist.source]?.label}</p><h1>{playlist.title}</h1><span>{playlist.tracks?.length || 0} 首歌曲</span>{playlist.tracks?.length > 0 && <button className="primary-button play-all-inline" type="button" onClick={() => onPlayAll(playlist.tracks, queueContextKey)}><Play size={16} />全部播放</button>}</div>
       </div>
-      <TrackRows tracks={playlist.tracks || []} onPlay={onPlay} activeRequest={activeRequest} emptyTitle="链接已保存" emptyCopy="当前 API 文档没有这个平台的歌单详情接口。" />
+      <TrackRows tracks={playlist.tracks || []} onPlay={onPlay} queueContextKey={queueContextKey} activeRequest={activeRequest} emptyTitle="链接已保存" emptyCopy="当前 API 文档没有这个平台的歌单详情接口。" />
     </section>
   );
 }
@@ -1106,7 +1162,7 @@ function PlaylistsView({ playlists, onAdd, onCreatePlaylist, onPlay, onPlayAll, 
   const [newName, setNewName] = useState('');
   const selected = playlists.find((playlist) => `${playlist.source}:${playlist.id}:${playlist.url}` === selectedKey);
   const submit = async (event) => { event.preventDefault(); if (await onAdd(url)) setUrl(''); };
-  if (selected) return <PlaylistDetailView playlist={selected} onBack={() => setSelectedKey('')} onPlay={onPlay} onPlayAll={onPlayAll} activeRequest={activeRequest} />;
+  if (selected) return <PlaylistDetailView playlist={selected} queueContextKey={selectedKey} onBack={() => setSelectedKey('')} onPlay={onPlay} onPlayAll={onPlayAll} activeRequest={activeRequest} />;
   return (
     <section className="playlists-view content-enter">
       <header className="page-heading"><p>跨平台收藏</p><h1>我的歌单</h1><span>{playlists.length} 个歌单</span></header>
@@ -1129,12 +1185,12 @@ function PlaylistsView({ playlists, onAdd, onCreatePlaylist, onPlay, onPlayAll, 
   );
 }
 
-function LyricsView({ track, currentTime, duration, playing, onToggle, onPrevious, onNext, onClose, onSeek, quality, onQuality, qualityLoading, playMode, visible, liked, onToggleLike, onCyclePlayMode, playlists, onCreatePlaylist, onAddToPlaylist }) {
+function LyricsView({ track, currentTime, duration, playing, onToggle, onPrevious, onNext, onClose, onSeek, quality, onQuality, qualityLoading, playMode, visible, liked, onToggleLike, onCyclePlayMode, playlists, onCreatePlaylist, onAddToPlaylist, volume, onVolume, queue, onPlayQueue }) {
   const lyrics = useMemo(() => parseLyrics(track.lyricRaw, track.translationRaw, track.romanRaw, track.wordLyricRaw), [track.lyricRaw, track.translationRaw, track.romanRaw, track.wordLyricRaw]);
   const activeIndex = lyrics.findLastIndex((line) => line.time <= currentTime + 0.04);
   const scrollRef = useRef(null);
   const manualScrollUntilRef = useRef(0);
-  const [showTranslation, setShowTranslation] = useState(true);
+  const [showTranslation, setShowTranslation] = useState(loadLyricsTranslationSetting);
   const [showRoman, setShowRoman] = useState(true);
   const [playlistMenuOpen, setPlaylistMenuOpen] = useState(false);
   const [playlistStep, setPlaylistStep] = useState('menu');
@@ -1145,6 +1201,13 @@ function LyricsView({ track, currentTime, duration, playing, onToggle, onPreviou
   const hasRoman = lyrics.some((line) => line.roman);
   const onSeekRef = useRef(onSeek);
   onSeekRef.current = onSeek;
+  const toggleTranslation = () => {
+    setShowTranslation((state) => {
+      const next = !state;
+      localStorage.setItem('rain_lyrics_translation_v1', next ? 'on' : 'off');
+      return next;
+    });
+  };
   useEffect(() => {
     if (!playlistMenuOpen) return undefined;
     const close = (event) => {
@@ -1180,7 +1243,7 @@ function LyricsView({ track, currentTime, duration, playing, onToggle, onPreviou
       <div className="lyrics-toolbar">
         <span className="lyrics-drag-zone" aria-hidden="true" />
         <div className="lyrics-options">
-          <button className={`lyric-toggle ${showTranslation ? 'active' : ''}`} type="button" disabled={!hasTranslation} aria-pressed={showTranslation} onClick={() => setShowTranslation((state) => !state)}>翻译</button>
+          <button className={`lyric-toggle ${showTranslation ? 'active' : ''}`} type="button" disabled={!hasTranslation} aria-pressed={showTranslation} onClick={toggleTranslation}>翻译</button>
           <button className={`lyric-toggle ${showRoman ? 'active' : ''}`} type="button" disabled={!hasRoman} aria-pressed={showRoman} onClick={() => setShowRoman((state) => !state)}>音标</button>
           <CustomSelect className="quality-select" label="音质" icon={<SlidersHorizontal size={15} />} value={quality} onChange={onQuality} disabled={qualityLoading || track.empty} options={qualityOptionsForTrack(track)} />
         </div>
@@ -1188,7 +1251,7 @@ function LyricsView({ track, currentTime, duration, playing, onToggle, onPreviou
       <div className="lyrics-layout">
         <div className="art-column">
           <div className="album-frame"><IconButton className="lyrics-close" label="收起歌词" onClick={onClose}><X size={19} /></IconButton><img src={track.cover || rainIcon} alt={`${track.album} 封面`} /></div>
-          <div className="track-heading"><div><h2>{track.title}</h2><p>{track.artist} · {track.album}</p></div><div className="track-actions"><div className="track-action-buttons"><div className="playlist-picker-root" ref={playlistRootRef}><IconButton label="更多" onClick={() => { setPlaylistMenuOpen((state) => !state); setPlaylistStep('menu'); }}><Ellipsis /></IconButton>{playlistMenuOpen && <div className="playlist-picker">{playlistStep === 'menu' ? <button type="button" onClick={() => setPlaylistStep('playlists')}>收藏至歌单</button> : <><button type="button" onClick={() => { setCreatingPlaylist(true); setNewPlaylistName(''); }}>新建歌单</button>{creatingPlaylist && <div className="playlist-picker-create"><input value={newPlaylistName} onChange={(event) => setNewPlaylistName(event.target.value)} placeholder="歌单名称" autoFocus /><button type="button" disabled={!newPlaylistName.trim()} onClick={() => { const playlist = onCreatePlaylist(newPlaylistName, track); if (playlist) { setNewPlaylistName(''); setCreatingPlaylist(false); setPlaylistMenuOpen(false); setPlaylistStep('menu'); } }}>创建</button></div>}{playlists.map((playlist) => <button type="button" key={playlist.id} onClick={() => { onAddToPlaylist(playlist, track); setPlaylistMenuOpen(false); setPlaylistStep('menu'); }}>{playlist.title}</button>)}<button className="playlist-picker-back" type="button" onClick={() => setPlaylistStep('menu')}>返回</button></>}</div>}</div></div><span className="play-mode-status">{PLAY_MODE_META[playMode].label}</span></div></div>
+          <div className="track-heading"><div className="track-heading-copy"><h2>{track.title}</h2><p>{track.artist} · {track.album}</p></div><div className="track-actions"><div className="track-action-buttons"><label className="lyrics-volume"><Volume2 size={16} /><input aria-label="歌词页音量" type="range" min="0" max="1" step="0.01" value={volume} onChange={(event) => onVolume(Number(event.target.value))} /></label><IconButton className={`heart-button ${liked ? 'liked' : ''}`} label={liked ? '取消喜欢' : '加入喜欢的音乐'} aria-pressed={liked} onClick={onToggleLike}><Heart size={18} fill={liked ? 'currentColor' : 'none'} /></IconButton><div className="playlist-picker-root" ref={playlistRootRef}><IconButton label="更多" onClick={() => { setPlaylistMenuOpen((state) => !state); setPlaylistStep('menu'); }}><Ellipsis /></IconButton>{playlistMenuOpen && <div className="playlist-picker">{playlistStep === 'menu' ? <button type="button" onClick={() => setPlaylistStep('playlists')}>收藏至歌单</button> : <><button type="button" onClick={() => { setCreatingPlaylist(true); setNewPlaylistName(''); }}>新建歌单</button>{creatingPlaylist && <div className="playlist-picker-create"><input value={newPlaylistName} onChange={(event) => setNewPlaylistName(event.target.value)} placeholder="歌单名称" autoFocus /><button type="button" disabled={!newPlaylistName.trim()} onClick={() => { const playlist = onCreatePlaylist(newPlaylistName, track); if (playlist) { setNewPlaylistName(''); setCreatingPlaylist(false); setPlaylistMenuOpen(false); setPlaylistStep('menu'); } }}>创建</button></div>}{playlists.map((playlist) => <button type="button" key={playlist.id} onClick={() => { onAddToPlaylist(playlist, track); setPlaylistMenuOpen(false); setPlaylistStep('menu'); }}>{playlist.title}</button>)}<button className="playlist-picker-back" type="button" onClick={() => setPlaylistStep('menu')}>返回</button></>}</div>}</div></div><span className="play-mode-status">{PLAY_MODE_META[playMode].label}</span></div></div>
           <div className="lyrics-controls">
             <div className="timeline">
               <div className="timeline-track"><span style={{ transform: `scaleX(${duration ? currentTime / duration : 0})` }} /></div>
@@ -1196,7 +1259,7 @@ function LyricsView({ track, currentTime, duration, playing, onToggle, onPreviou
               <span className="timeline-thumb" style={{ left: `${Math.max(0, Math.min(100, duration ? (currentTime / duration) * 100 : 0))}%` }} />
               <small>{formatTime(currentTime)}</small><small>-{formatTime(Math.max(0, duration - currentTime))}</small>
             </div>
-            <div className="main-controls"><IconButton className={`heart-button ${liked ? 'liked' : ''}`} label={liked ? '取消喜欢' : '加入喜欢的音乐'} aria-pressed={liked} onClick={onToggleLike}><Heart size={19} fill={liked ? 'currentColor' : 'none'} /></IconButton><IconButton label="上一首" onClick={onPrevious}><SkipBack size={26} fill="currentColor" /></IconButton><button className="large-play" onClick={onToggle} aria-label={playing ? '暂停' : '播放'}>{playing ? <Pause fill="currentColor" /> : <Play fill="currentColor" />}</button><IconButton label="下一首" onClick={onNext}><SkipForward size={26} fill="currentColor" /></IconButton><IconButton className="mode-active" label={PLAY_MODE_META[playMode].label} aria-pressed="true" onClick={onCyclePlayMode}>{playMode === 'repeat' ? <Repeat1 size={19} /> : playMode === 'shuffle' ? <Shuffle size={19} /> : <ListOrdered size={19} />}</IconButton></div>
+            <div className="main-controls"><IconButton className="mode-active" label={PLAY_MODE_META[playMode].label} aria-pressed="true" onClick={onCyclePlayMode}>{playMode === 'repeat' ? <Repeat1 size={19} /> : playMode === 'shuffle' ? <Shuffle size={19} /> : <ListOrdered size={19} />}</IconButton><IconButton label="上一首" onClick={onPrevious}><SkipBack size={26} fill="currentColor" /></IconButton><button className="large-play" onClick={onToggle} aria-label={playing ? '暂停' : '播放'}>{playing ? <Pause fill="currentColor" /> : <Play fill="currentColor" />}</button><IconButton label="下一首" onClick={onNext}><SkipForward size={26} fill="currentColor" /></IconButton><QueueMenu tracks={queue} onPlay={onPlayQueue} /></div>
           </div>
         </div>
         <div className="lyric-scroll" ref={scrollRef} tabIndex="0" aria-label="同步歌词" onWheel={() => { manualScrollUntilRef.current = Date.now() + 5000; }} onPointerDown={() => { manualScrollUntilRef.current = Date.now() + 5000; }}>
@@ -1262,6 +1325,7 @@ function App() {
   const [lyricsVisible, setLyricsVisible] = useState(false);
   const [current, setCurrent] = useState(EMPTY_TRACK);
   const [queue, setQueue] = useState([]);
+  const [queueContext, setQueueContext] = useState('');
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -1291,11 +1355,17 @@ function App() {
   const [avatar, setAvatar] = useState(() => localStorage.getItem('rain_profile_avatar') || '');
   const [listeningStats, setListeningStats] = useState(loadListeningStats);
   const [quota, setQuota] = useState({ connected: false, state: 'checking' });
+  const [neteaseStatus, setNeteaseStatus] = useState({ connected: false, state: 'checking' });
+  const [dailyTracks, setDailyTracks] = useState([]);
+  const [dailyLoading, setDailyLoading] = useState(false);
+  const [dailyError, setDailyError] = useState('');
+  const [dailyKey, setDailyKey] = useState('');
   const [updateInfo, setUpdateInfo] = useState(null);
   const [updateChecking, setUpdateChecking] = useState(false);
   const [updateDownloading, setUpdateDownloading] = useState(false);
   const [updateProgress, setUpdateProgress] = useState(0);
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
+  const [releaseAnnouncement, setReleaseAnnouncement] = useState(null);
   const [cacheInfo, setCacheInfo] = useState({ path: '', size: 0 });
   const audioRef = useRef(null);
   const loadedAudioUrlRef = useRef('');
@@ -1309,19 +1379,53 @@ function App() {
     '--edge-top': palette[0], '--edge-right': palette[1], '--edge-bottom': palette[2], '--edge-left': palette[3],
   };
 
+  const loadDailyRecommendations = async (force = false) => {
+    setDailyLoading(true);
+    setDailyError('');
+    const result = await getNeteaseDaily({ force });
+    setDailyLoading(false);
+    setNeteaseStatus({ connected: Boolean(result.connected), state: result.connected ? 'connected' : (result.message?.includes('失效') ? 'expired' : 'disconnected') });
+    if (!result.ok) {
+      setDailyTracks([]);
+      setDailyError(result.message || '无法读取每日推荐');
+      return;
+    }
+    setDailyTracks(Array.isArray(result.tracks) ? result.tracks : []);
+    setDailyKey(result.refreshKey || dailyRefreshKey());
+  };
+
   useEffect(() => {
     getSettings().then((settings) => {
       setHasApiKey(settings.hasApiKey);
       setCloseAction(CLOSE_ACTION_OPTIONS.some(([value]) => value === settings.closeAction) ? settings.closeAction : 'ask');
     });
     getQuotaStatus().then(setQuota);
+    getNeteaseStatus().then(setNeteaseStatus);
     const removeQuotaListener = onQuotaUpdated(setQuota);
+    const removeNeteaseListener = onNeteaseStatus(setNeteaseStatus);
     const removeCloseListener = onCloseRequested(() => setCloseDialogOpen(true));
     return () => {
       removeQuotaListener();
+      removeNeteaseListener();
       removeCloseListener();
     };
   }, []);
+  useEffect(() => {
+    let cancelled = false;
+    void getAppVersion().then(({ version }) => {
+      if (cancelled || !version || localStorage.getItem('rain_seen_release_announcement') === version) return;
+      setReleaseAnnouncement({ version });
+    });
+    return () => { cancelled = true; };
+  }, []);
+  useEffect(() => {
+    if (view !== 'daily') return undefined;
+    void loadDailyRecommendations(false);
+    const timer = setInterval(() => {
+      if (dailyRefreshKey() !== dailyKey) void loadDailyRecommendations(false);
+    }, 60000);
+    return () => clearInterval(timer);
+  }, [view, neteaseStatus.connected, dailyKey]);
   useEffect(() => {
     void getCacheInfo().then((result) => {
       if (result.ok) setCacheInfo({ path: result.path, size: result.size });
@@ -1475,6 +1579,11 @@ function App() {
     await openQuotaLogin();
     notify('请在打开的 API 窗口中登录，额度会自动同步');
   };
+  const openNeteaseAccount = async () => {
+    const result = await openNeteaseLogin();
+    if (!result?.ok) return notify(result?.message || '无法打开网易云音乐登录窗口', 'error');
+    notify('请在打开的网易云音乐窗口中完成登录，Rain 会自动同步状态');
+  };
 
   const checkForAppUpdate = async () => {
     setUpdateChecking(true);
@@ -1558,12 +1667,13 @@ function App() {
     return detail;
   };
 
-  const selectSearchResult = async (item, results) => {
+  const selectSearchResult = async (item, results, contextKey = '') => {
     setActiveRequest(trackKey(item));
     try {
       const defaultQuality = defaultQualities[item.source] || DEFAULT_QUALITIES[item.source] || 'flac';
       const detail = await resolveTrack(item, defaultQuality);
       setQueue(results);
+      setQueueContext(contextKey);
       setCurrent(detail);
       setQuality(defaultQuality);
       setCurrentTime(0);
@@ -1579,13 +1689,23 @@ function App() {
     }
   };
 
-  const playSavedTrack = async (item) => {
+  const playSavedTrack = async (item, sourceTracks, contextKey = '') => {
     setActiveRequest(trackKey(item));
     try {
+      const sourceItems = sourceTracks?.filter((entry) => entry && !entry.empty) || [];
+      const sameQueue = sourceItems.length > 0 && sourceItems.length === queue.length && sourceItems.every((entry, index) => trackKey(entry) === trackKey(queue[index])) && (contextKey ? queueContext === contextKey : !queueContext);
+      if (sourceItems.length > 0) {
+        if (!sameQueue) {
+          setQueue(sourceItems);
+          setQueueContext(contextKey);
+        }
+      } else {
+        setQueue([item]);
+        setQueueContext('');
+      }
       if (item.source === 'local') {
         if (!/^(blob:|file:)/i.test(item.audioUrl || '')) throw new Error('本地文件已失效，请重新导入这首歌曲');
         setCurrent(item);
-        setQueue([item]);
         setQuality('local');
         setCurrentTime(0);
         pendingSeekRef.current = 0;
@@ -1595,7 +1715,6 @@ function App() {
         const nextQuality = item.quality || defaultQualities[item.source] || DEFAULT_QUALITIES[item.source] || 'flac';
         const detail = await resolveTrack(item, nextQuality);
         setCurrent(detail);
-        setQueue([item]);
         setQuality(nextQuality);
         setCurrentTime(0);
         pendingSeekRef.current = 0;
@@ -1639,11 +1758,12 @@ function App() {
     }
   };
 
-  const playAll = async (tracks) => {
+  const playAll = async (tracks, contextKey = '') => {
     const items = (tracks || []).filter((item) => item && !item.empty);
     if (!items.length) return notify('列表中没有歌曲');
     setPlayMode('sequence');
     setQueue(items);
+    setQueueContext(contextKey);
     const first = items[0];
     setActiveRequest(trackKey(first));
     try {
@@ -1740,6 +1860,7 @@ function App() {
       return result?.ok ? withLocalMetadata(baseTrack, result.metadata) : baseTrack;
     }));
     setQueue(items);
+    setQueueContext('');
     setLocalTracks((tracks) => [...items, ...tracks.filter((track) => !items.some((item) => item.id === track.id))]);
     setCurrent(items[0]);
     setQuality('local');
@@ -1769,7 +1890,7 @@ function App() {
       setPlaying(true);
       return;
     }
-    await selectSearchResult(item, queue);
+    await selectSearchResult(item, queue, queueContext);
   };
 
   const handleEnded = () => {
@@ -1905,13 +2026,14 @@ function App() {
   }, [shortcuts, current.empty, current.audioUrl, current.id, current.source, playing, queue, playMode, quality, volume]);
 
   const nonSearchView = view === 'settings' ? <SettingsView hasApiKey={hasApiKey} onSaved={setHasApiKey} notify={notify} onOpenAccount={openAccount} closeAction={closeAction} onCloseAction={changeCloseAction} avatar={avatar} onAvatar={setAvatar} userName={quota.userName} shortcuts={shortcuts} onShortcut={changeShortcut} onResetShortcuts={resetShortcuts} defaultQualities={defaultQualities} onDefaultQuality={changeDefaultQuality} onCheckUpdate={checkForAppUpdate} updateChecking={updateChecking} updateInfo={updateInfo} updateDownloading={updateDownloading} onDownloadInstall={handleUpdateNow} cacheInfo={cacheInfo} onCachePath={changeCachePath} onClearCache={clearCacheNow} />
+    : view === 'daily' ? <DailyRecommendationsView status={neteaseStatus} tracks={dailyTracks} loading={dailyLoading} error={dailyError} onLogin={openNeteaseAccount} onRefresh={loadDailyRecommendations} onPlay={playSavedTrack} onPlayAll={playAll} onBack={() => navigate('library')} activeRequest={activeRequest} />
     : view === 'liked' ? <LikesView liked={liked} onPlay={playSavedTrack} onPlayAll={playAll} onRemove={toggleLike} activeRequest={activeRequest} />
     : view === 'recent' ? <RecentView tracks={recent} onPlay={playSavedTrack} onPlayAll={playAll} onBack={() => navigate('library')} activeRequest={activeRequest} />
     : view === 'albums' ? <EntityLibraryView title="专辑" subtitle="在搜索的专辑分类中点击爱心收藏。" items={savedAlbums} kind="album" onToggle={toggleEntity(setSavedAlbums)} onOpen={openSavedEntity} />
     : view === 'artists' ? <EntityLibraryView title="歌手" subtitle="在搜索的歌手分类中点击爱心收藏。" items={savedArtists} kind="artist" onToggle={toggleEntity(setSavedArtists)} onOpen={openSavedEntity} />
     : view === 'local' ? <LocalMusicView tracks={localTracks} onImport={importLocal} onPlay={playSavedTrack} onPlayAll={playAll} onDelete={deleteLocalTracks} activeRequest={activeRequest} />
     : view === 'playlists' ? <PlaylistsView playlists={playlists} onAdd={addPlaylist} onCreatePlaylist={createPlaylist} onPlay={playSavedTrack} onPlayAll={playAll} onRemove={removePlaylist} activeRequest={activeRequest} loading={playlistLoading} />
-    : <LibraryView current={current} onOpenLikes={() => navigate('liked')} onOpenRecent={() => navigate('recent')} onImport={importLocal} likedCount={liked.length} avatar={avatar} userName={quota.userName} stats={listeningStats} />;
+    : <LibraryView current={current} onOpenDaily={() => navigate('daily')} onOpenRecent={() => navigate('recent')} onImport={importLocal} avatar={avatar} userName={quota.userName} stats={listeningStats} />;
 
   return (
     <div className={`app-shell ${lyricsMounted ? 'lyrics-mode' : ''}`} style={rootStyle}>
@@ -1936,14 +2058,15 @@ function App() {
       <main className="main-panel">
         <div className="base-view search-keeper" hidden={view !== 'search'}><SearchView active={view === 'search'} hasApiKey={hasApiKey} onNeedKey={needKey} onSelect={selectSearchResult} onPlayAll={playAll} activeRequest={activeRequest} quota={quota} onOpenAccount={openAccount} savedArtists={savedArtists} savedAlbums={savedAlbums} onSaveArtist={toggleEntity(setSavedArtists)} onSaveAlbum={toggleEntity(setSavedAlbums)} entityRequest={entityRequest} liked={liked} onToggleLike={toggleLike} /></div>
         <div className="base-view" hidden={view === 'search'}>{nonSearchView}</div>
-        {lyricsMounted && <LyricsView visible={lyricsVisible} track={current} currentTime={currentTime} duration={duration} playing={playing} onToggle={togglePlay} onPrevious={() => playAdjacent(-1)} onNext={() => playAdjacent(1)} onClose={closeLyrics} onSeek={seek} quality={quality} onQuality={changeQuality} qualityLoading={qualityLoading} playMode={playMode} liked={!current.empty && liked.some((track) => trackKey(track) === trackKey(current))} onToggleLike={() => toggleLike(current)} onCyclePlayMode={cyclePlayMode} playlists={playlists} onCreatePlaylist={createPlaylist} onAddToPlaylist={addTrackToPlaylist} />}
       </main>
+      {lyricsMounted && <LyricsView visible={lyricsVisible} track={current} currentTime={currentTime} duration={duration} playing={playing} onToggle={togglePlay} onPrevious={() => playAdjacent(-1)} onNext={() => playAdjacent(1)} onClose={closeLyrics} onSeek={seek} quality={quality} onQuality={changeQuality} qualityLoading={qualityLoading} playMode={playMode} liked={!current.empty && liked.some((track) => trackKey(track) === trackKey(current))} onToggleLike={() => toggleLike(current)} onCyclePlayMode={cyclePlayMode} playlists={playlists} onCreatePlaylist={createPlaylist} onAddToPlaylist={addTrackToPlaylist} volume={volume} onVolume={setVolume} queue={queue} onPlayQueue={playQueueItem} />}
       {!lyricsMounted && <MiniPlayer track={current} playing={playing} currentTime={currentTime} duration={duration} onToggle={togglePlay} onPrevious={() => playAdjacent(-1)} onNext={() => playAdjacent(1)} onOpen={openLyrics} onSeek={seek} volume={volume} onVolume={setVolume} liked={!current.empty && liked.some((track) => trackKey(track) === trackKey(current))} onToggleLike={() => toggleLike(current)} queue={queue} onPlayQueue={playQueueItem} playMode={playMode} onCyclePlayMode={cyclePlayMode} />}
       <audio ref={audioRef} onTimeUpdate={handleAudioTimeUpdate} onLoadedMetadata={handleLoadedMetadata} onEnded={handleEnded} />
       {volumeFeedback !== null && <div className={`volume-feedback ${lyricsMounted ? 'in-lyrics' : ''}`} role="status" aria-live="polite"><Volume2 size={17} /><div><span>音量</span><strong>{volumeFeedback}%</strong><i><b style={{ transform: `scaleX(${volumeFeedback / 100})` }} /></i></div></div>}
       {toast && <div className={`toast ${toast.type}`} role="status"><span>{toast.type === 'success' ? <Check size={16} /> : toast.type === 'error' ? '!' : <Sparkles size={16} />}</span>{toast.message}</div>}
       {closeDialogOpen && <CloseBehaviorDialog onChoose={chooseCloseAction} onCancel={cancelClose} />}
       {updateDialogOpen && updateInfo && <UpdateDialog info={updateInfo} downloading={updateDownloading} progress={updateProgress} onClose={() => setUpdateDialogOpen(false)} onUpdate={handleUpdateNow} />}
+      {releaseAnnouncement && <ReleaseAnnouncementDialog version={releaseAnnouncement.version} onClose={() => { localStorage.setItem('rain_seen_release_announcement', releaseAnnouncement.version); setReleaseAnnouncement(null); }} />}
     </div>
   );
 }

@@ -2,6 +2,7 @@ const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('musicBridge', {
   getSettings: () => ipcRenderer.invoke('settings:get'),
+  getAppVersion: () => ipcRenderer.invoke('app:get-version'),
   saveApiKey: (apiKey) => ipcRenderer.invoke('settings:save-key', apiKey),
   clearApiKey: () => ipcRenderer.invoke('settings:clear-key'),
   saveCloseAction: (closeAction) => ipcRenderer.invoke('settings:save-close-action', closeAction),
@@ -26,6 +27,9 @@ contextBridge.exposeInMainWorld('musicBridge', {
   putCachedSearch: (key, results) => ipcRenderer.invoke('cache:put-search', key, results),
   getQuotaStatus: () => ipcRenderer.invoke('quota:get'),
   openQuotaLogin: () => ipcRenderer.invoke('quota:open-login'),
+  getNeteaseStatus: () => ipcRenderer.invoke('netease:get-status'),
+  openNeteaseLogin: () => ipcRenderer.invoke('netease:open-login'),
+  getNeteaseDaily: (options) => ipcRenderer.invoke('netease:get-daily', options),
   checkForUpdates: () => ipcRenderer.invoke('updates:check'),
   downloadUpdate: () => ipcRenderer.invoke('updates:download'),
   installUpdate: () => ipcRenderer.invoke('updates:install'),
@@ -33,6 +37,11 @@ contextBridge.exposeInMainWorld('musicBridge', {
     const listener = (_event, status) => callback(status);
     ipcRenderer.on('quota:updated', listener);
     return () => ipcRenderer.removeListener('quota:updated', listener);
+  },
+  onNeteaseStatus: (callback) => {
+    const listener = (_event, status) => callback(status);
+    ipcRenderer.on('netease:status-updated', listener);
+    return () => ipcRenderer.removeListener('netease:status-updated', listener);
   },
   onUpdateProgress: (callback) => {
     const listener = (_event, status) => callback(status);

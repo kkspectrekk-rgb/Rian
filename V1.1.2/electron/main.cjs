@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, safeStorage, protocol, Tray, Menu, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, safeStorage, protocol, Tray, Menu, nativeImage, session } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
@@ -8,6 +8,9 @@ const { spawn } = require('node:child_process');
 
 const API_BASE = 'https://api.chksz.com';
 const ACCOUNT_URL = `${API_BASE}/login.html`;
+const NETEASE_HOME_URL = 'https://music.163.com/';
+const NETEASE_RECOMMEND_URL = 'https://music.163.com/#/discover/recommend/taste';
+const NETEASE_PARTITION = 'persist:rain-netease-account';
 const LEGACY_USER_DATA = path.join(app.getPath('appData'), 'Aurora Music');
 const DEV_INSTANCE = process.env.RAIN_DEV_INSTANCE === '1';
 app.setPath('userData', DEV_INSTANCE ? path.join(app.getPath('appData'), 'Rain Music Dev') : LEGACY_USER_DATA);
@@ -30,6 +33,7 @@ const mediaCachePath = () => readSettingsData().cacheDirectory || defaultCacheDi
 const cacheIndexPath = () => path.join(mediaCachePath(), 'index.json');
 let mainWindow;
 let accountWindow;
+let neteaseWindow;
 let tray;
 let quotaTimer;
 let startupShowTimer;
@@ -37,6 +41,7 @@ let closePromptPending = false;
 let pendingSecondInstance = false;
 let quitting = false;
 let quotaStatus = { connected: false, state: 'checking', updatedAt: 0 };
+let neteaseStatus = { connected: false, state: 'checking', updatedAt: 0 };
 let musicMetadataModule;
 let updateState = { checking: false, update: null, downloading: false, downloadedPath: '' };
 
@@ -419,6 +424,202 @@ function createAccountWindow(show = false) {
   return accountWindow;
 }
 
+function isAllowedNeteaseUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && (url.hostname === 'music.163.com' || url.hostname.endsWith('.music.163.com'));
+  } catch {
+    return false;
+  }
+}
+
+function publishNeteaseStatus(nextStatus) {
+  neteaseStatus = { ...nextStatus, updatedAt: Date.now() };
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('netease:status-updated', neteaseStatus);
+  }
+  return neteaseStatus;
+}
+
+async function readNeteaseCookieStatus() {
+  try {
+    const cookies = await session.fromPartition(NETEASE_PARTITION).cookies.get({ url: NETEASE_HOME_URL });
+    const connected = cookies.some((cookie) => ['MUSIC_U', 'MUSIC_A'].includes(cookie.name) && cookie.value);
+    return publishNeteaseStatus({ connected, state: connected ? 'connected' : 'disconnected' });
+  } catch {
+    return publishNeteaseStatus({ connected: false, state: 'disconnected' });
+  }
+}
+
+async function validateNeteaseStatus() {
+  const cookieStatus = await readNeteaseCookieStatus();
+  if (!cookieStatus.connected) return cookieStatus;
+  try {
+    const response = await session.fromPartition(NETEASE_PARTITION).fetch('https://music.163.com/api/nuser/account/get', {
+      credentials: 'include',
+      useSessionCookies: true,
+      headers: { Accept: 'application/json', Referer: NETEASE_HOME_URL },
+      signal: AbortSignal.timeout(10000),
+    });
+    const data = await response.json();
+    const connected = response.ok && Number(data?.code || 200) === 200 && Boolean(data?.account || data?.profile);
+    return publishNeteaseStatus({ connected, state: connected ? 'connected' : 'expired' });
+  } catch {
+    return cookieStatus;
+  }
+}
+
+function neteaseDailyCachePath() {
+  return path.join(app.getPath('userData'), 'netease-daily-recommendations.json');
+}
+
+function neteaseRefreshKey(date = new Date()) {
+  const effective = new Date(date);
+  if (effective.getHours() < 6) effective.setDate(effective.getDate() - 1);
+  const offset = effective.getTimezoneOffset() * 60000;
+  return new Date(effective.getTime() - offset).toISOString().slice(0, 10);
+}
+
+function readNeteaseDailyCache() {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(neteaseDailyCachePath(), 'utf8'));
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeNeteaseDailyCache(value) {
+  fs.mkdirSync(path.dirname(neteaseDailyCachePath()), { recursive: true });
+  const temporary = `${neteaseDailyCachePath()}.tmp`;
+  fs.writeFileSync(temporary, JSON.stringify(value), { mode: 0o600 });
+  try {
+    fs.renameSync(temporary, neteaseDailyCachePath());
+  } catch {
+    fs.copyFileSync(temporary, neteaseDailyCachePath());
+    fs.rmSync(temporary, { force: true });
+  }
+}
+
+function normalizeNeteaseDailyTrack(item, index) {
+  const album = item.al || item.album || {};
+  const artists = item.ar || item.artists || [];
+  const duration = Number(item.dt || item.duration || 0);
+  return {
+    source: 'netease',
+    id: String(item.id || index + 1),
+    n: index + 1,
+    title: item.name || item.title || '未知歌曲',
+    artist: (Array.isArray(artists) ? artists : []).map((artist) => artist?.name || '').filter(Boolean).join(' / ') || '未知艺人',
+    album: album.name || '未知专辑',
+    cover: String(album.picUrl || album.picurl || '').replace(/^http:/i, 'https:'),
+    duration: duration > 10000 ? duration / 1000 : duration,
+  };
+}
+
+async function requestNeteaseDailySongs() {
+  const accountSession = session.fromPartition(NETEASE_PARTITION);
+  const cookies = await accountSession.cookies.get({ url: NETEASE_HOME_URL });
+  const loginCookie = cookies.find((cookie) => ['MUSIC_U', 'MUSIC_A'].includes(cookie.name) && cookie.value);
+  if (!loginCookie) {
+    publishNeteaseStatus({ connected: false, state: 'disconnected' });
+    return { ok: false, connected: false, message: '请先登录网易云音乐' };
+  }
+  const csrf = cookies.find((cookie) => cookie.name === '__csrf')?.value || '';
+  const endpoints = [
+    'https://music.163.com/api/v3/discovery/recommend/songs',
+    'https://music.163.com/api/v2/discovery/recommend/songs',
+    'https://music.163.com/api/recommend/songs',
+  ];
+  let lastMessage = '没有读取到每日推荐';
+  for (const endpoint of endpoints) {
+    try {
+      const url = `${endpoint}?csrf_token=${encodeURIComponent(csrf)}`;
+      const response = await accountSession.fetch(url, {
+        method: 'POST',
+        credentials: 'include',
+        useSessionCookies: true,
+        signal: AbortSignal.timeout(15000),
+        headers: {
+          Accept: 'application/json, text/plain, */*',
+          'Content-Type': 'application/x-www-form-urlencoded',
+          Origin: 'https://music.163.com',
+          Referer: NETEASE_RECOMMEND_URL,
+        },
+        body: `csrf_token=${encodeURIComponent(csrf)}`,
+      });
+      const data = await response.json();
+      if (Number(data?.code) === 301) {
+        publishNeteaseStatus({ connected: false, state: 'expired' });
+        return { ok: false, connected: false, message: '网易云登录已失效，请重新登录' };
+      }
+      const songs = data?.data?.dailySongs || data?.recommend || data?.data?.recommend || data?.songs;
+      if (response.ok && Number(data?.code || 200) === 200 && Array.isArray(songs)) {
+        const tracks = songs.map(normalizeNeteaseDailyTrack);
+        publishNeteaseStatus({ connected: true, state: 'connected' });
+        return { ok: true, connected: true, tracks };
+      }
+      lastMessage = data?.message || data?.msg || `网易云响应 ${response.status}`;
+    } catch (error) {
+      lastMessage = error.name === 'TimeoutError' ? '网易云请求超时' : (error.message || '网易云连接失败');
+    }
+  }
+  publishNeteaseStatus({ connected: true, state: 'connected' });
+  return { ok: false, connected: true, message: lastMessage };
+}
+
+async function getNeteaseDailySongs(force = false) {
+  const refreshKey = neteaseRefreshKey();
+  const cached = readNeteaseDailyCache();
+  const status = await validateNeteaseStatus();
+  if (!status.connected) return { ok: false, connected: false, refreshKey, tracks: [], message: status.state === 'expired' ? '网易云登录已失效，请重新登录' : '请先登录网易云音乐' };
+  if (!force && cached?.refreshKey === refreshKey && Array.isArray(cached.tracks)) {
+    return { ok: true, connected: true, refreshKey, tracks: cached.tracks, cached: true, fetchedAt: cached.fetchedAt };
+  }
+  const result = await requestNeteaseDailySongs();
+  if (!result.ok) return { ...result, refreshKey, tracks: [] };
+  const payload = { refreshKey, tracks: result.tracks, fetchedAt: Date.now() };
+  writeNeteaseDailyCache(payload);
+  return { ok: true, connected: true, ...payload, cached: false };
+}
+
+function createNeteaseWindow() {
+  if (neteaseWindow && !neteaseWindow.isDestroyed()) {
+    neteaseWindow.show();
+    neteaseWindow.focus();
+    return neteaseWindow;
+  }
+  neteaseWindow = new BrowserWindow({
+    width: 1120,
+    height: 780,
+    minWidth: 820,
+    minHeight: 620,
+    show: true,
+    backgroundColor: '#f5f5f7',
+    title: '网易云音乐登录',
+    autoHideMenuBar: true,
+    webPreferences: {
+      partition: NETEASE_PARTITION,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+  neteaseWindow.webContents.setWindowOpenHandler(({ url }) => isAllowedNeteaseUrl(url) ? { action: 'allow' } : { action: 'deny' });
+  neteaseWindow.webContents.on('will-navigate', (event, url) => {
+    if (!isAllowedNeteaseUrl(url)) event.preventDefault();
+  });
+  neteaseWindow.webContents.on('did-finish-load', () => {
+    setTimeout(readNeteaseCookieStatus, 700);
+  });
+  neteaseWindow.on('closed', () => {
+    neteaseWindow = null;
+    void readNeteaseCookieStatus();
+  });
+  neteaseWindow.loadURL(NETEASE_HOME_URL);
+  return neteaseWindow;
+}
+
 function readEncryptedKey() {
   try {
     const saved = readSettingsData();
@@ -598,7 +799,7 @@ async function fetchLatestUpdate() {
   const current = app.getVersion();
   if (!version || !versionGreater(version, current)) return { update: null, current };
   const asset = (release.assets || []).find((item) => /\.exe$/i.test(item.name || ''));
-  if (!asset?.browser_download_url) throw new Error('新版本没有可下载的便携版文件');
+  if (!asset?.browser_download_url) throw new Error('新版本没有可下载的安装包');
   return {
     update: {
       version,
@@ -690,6 +891,10 @@ function readDirectorySize(directory) {
 
 async function startApplication() {
   app.setAppUserModelId('com.aurora.music');
+  const neteaseSession = session.fromPartition(NETEASE_PARTITION);
+  neteaseSession.cookies.on('changed', (_event, cookie) => {
+    if (['MUSIC_U', 'MUSIC_A'].includes(cookie.name)) void readNeteaseCookieStatus();
+  });
   protocol.handle('rain-cache', (request) => {
     try {
       const url = new URL(request.url);
@@ -709,6 +914,7 @@ async function startApplication() {
     }
   });
   ipcMain.handle('settings:get', () => ({ hasApiKey: Boolean(readEncryptedKey()), closeAction: getCloseAction() }));
+  ipcMain.handle('app:get-version', () => ({ version: app.getVersion() }));
   ipcMain.handle('settings:save-key', (_event, apiKey) => {
     if (typeof apiKey !== 'string' || !/^chksz_[A-Za-z0-9_-]+$/.test(apiKey.trim())) {
       return { ok: false, message: 'API Key 格式应为 chksz_ 开头。' };
@@ -784,6 +990,13 @@ async function startApplication() {
     setTimeout(readQuotaFromAccountPage, 1200);
     return { ok: true };
   });
+
+  ipcMain.handle('netease:get-status', () => validateNeteaseStatus());
+  ipcMain.handle('netease:open-login', () => {
+    createNeteaseWindow();
+    return { ok: true };
+  });
+  ipcMain.handle('netease:get-daily', (_event, options) => getNeteaseDailySongs(Boolean(options?.force)));
 
   ipcMain.handle('cache:get-track', (_event, key) => {
     if (typeof key !== 'string' || key.length > 300) return null;
