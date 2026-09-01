@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="./V1.1.2/src/assets/rain-icon.png" width="112" height="112" alt="Rain 图标">
+  <img src="./V1.1.3/src/assets/rain-icon.png" width="112" height="112" alt="Rain 图标">
 
   # Rain
 
@@ -7,12 +7,12 @@
 
   搜索、播放、逐字歌词与封面动态色彩，都集中在一个安静而流畅的界面中。
 
-  ![Version](https://img.shields.io/badge/version-1.1.2-18181b?style=flat-square)
+  ![Version](https://img.shields.io/badge/version-1.1.3-18181b?style=flat-square)
   ![Platform](https://img.shields.io/badge/platform-Windows-0078D4?style=flat-square&logo=windows11&logoColor=white)
   ![Electron](https://img.shields.io/badge/Electron-34-47848F?style=flat-square&logo=electron&logoColor=white)
   ![React](https://img.shields.io/badge/React-18-20232A?style=flat-square&logo=react&logoColor=61DAFB)
 
-  [![Download Rain](https://img.shields.io/badge/Download-Rain%201.1.2-ffffff?style=for-the-badge&logo=github&logoColor=black)](https://github.com/kkspectrekk-rgb/Rian/releases/latest)
+  [![Download Rain](https://img.shields.io/badge/Download-Rain%201.1.3-ffffff?style=for-the-badge&logo=github&logoColor=black)](https://github.com/kkspectrekk-rgb/Rian/releases/latest)
 </div>
 
 ---
@@ -46,7 +46,7 @@ Rain 不是网页播放器。它以独立 Windows 桌面程序运行，API 请�
 - **可自定义快捷键**：默认使用空格播放/暂停，Alt+方向键切歌与调节音量；设置页支持录制组合键并在松键后保存，快捷键调节音量时会显示当前百分比。
 - **更新方式**：安装版可在设置中检查更新，并下载运行安装包；旧便携版通过 V1.1.0.1 公告版引导切换到安装版。
 
-## V1.1.2 更新
+## V1.1.3 更新
 
 - 改为 Windows 安装版发布。
 - 安装版默认在安装目录创建 RainCache 缓存文件夹，设置页可更改缓存路径和清理缓存。
@@ -54,16 +54,18 @@ Rain 不是网页播放器。它以独立 Windows 桌面程序运行，API 请�
 - 歌词页更多按钮可收藏歌曲到已有或新建歌单。
 - 本地歌曲支持全选、批量删除，操作按钮统一放在筛选框下方。
 - 修复安装更新后本地歌曲封面丢失的问题。
+- 歌词页控件重新布局：音量旁加入收藏，底部提供循环/随机和当前播放列表。
+- 同一歌单内点歌保留原队列并从当前位置播放，切换其他歌单时才替换队列。
 
-完整内容请查看 [更新日志 v1.1.2](./V1.1.2/更新日志v1.1.2.txt)。
+完整内容请查看 [更新日志 v1.1.3](./V1.1.3/更新日志v1.1.3.txt)。
 
 ## 下载 Rain
 
-[**前往 GitHub Releases 下载 Rain 1.1.2 →**](https://github.com/kkspectrekk-rgb/Rian/releases/latest)
+[**前往 GitHub Releases 下载 Rain 1.1.3 →**](https://github.com/kkspectrekk-rgb/Rian/releases/latest)
 
-在最新版发行页面的 **Assets** 区域选择 `Rain.1.1.2-setup.exe`。这是 Windows x64 安装版。
+在最新版发行页面的 **Assets** 区域选择 `Rain.1.1.3-setup.exe`。这是 Windows x64 安装版。
 
-也可以使用 [Rain 1.1.2-setup.exe 直接下载链接](https://github.com/kkspectrekk-rgb/Rian/releases/download/v1.1.2/Rain.1.1.2-setup.exe)。
+也可以使用 [Rain 1.1.3-setup.exe 直接下载链接](https://github.com/kkspectrekk-rgb/Rian/releases/download/v1.1.3/Rain.1.1.3-setup.exe)。
 
 > 当前程序未进行代码签名，Windows 首次运行时可能显示“未知发布者”提示。旧便携版用户可先使用 `V1.1.0.1` 公告版查看迁移说明。
 
@@ -79,15 +81,15 @@ Rain 不是网页播放器。它以独立 Windows 桌面程序运行，API 请�
 
 ```powershell
 git clone https://github.com/kkspectrekk-rgb/Rian.git
-cd Rian\V1.1.2
+cd Rian\V1.1.3
 pnpm install
 pnpm dev
 ```
 
-### 构建便携版
+### 构建安装版
 
 ```powershell
-cd V1.1.2
+cd V1.1.3
 pnpm install
 pnpm dist:win
 ```
@@ -95,7 +97,7 @@ pnpm dist:win
 构建完成后，安装程序会生成在：
 
 ```text
-V1.1.2\release\Rain.1.1.2-setup.exe
+V1.1.3\release\Rain.1.1.3-setup.exe
 ```
 
 
@@ -139,13 +141,13 @@ API Key 通过 Electron 主进程调用 Windows `safeStorage` 加密后保存在
 Rian/
 ├─ README.md                    # 仓库主页说明
 ├─ V1.1.0.1/                  # 便携公告版，提示旧用户切换到安装版
-├─ V1.1.2/                    # 当前安装版
+├─ V1.1.3/                    # 当前安装版
 │  ├─ electron/                # Electron 主进程、窗口与本地缓存
 │  ├─ src/                     # React 界面、API 适配与歌词解析
 │  ├─ build/                   # Rain 应用图标
 │  ├─ scripts/                 # 图标生成脚本
-│  ├─ package.json             # 依赖与便携版构建配置
-│  └─ 更新日志v1.1.2.txt
+│  ├─ package.json             # 依赖与安装版构建配置
+│  └─ 更新日志v1.1.3.txt
 └─ .gitignore
 ```
 
@@ -161,7 +163,7 @@ Rian/
 
 ## 版本管理
 
-仓库包含 **V1.1.0.1** 便携公告版和 **V1.1.2** 安装版；旧便携版用户先查看 V1.1.0.1 公告，再下载安装版。
+仓库包含 **V1.1.0.1** 便携公告版和 **V1.1.3** 安装版；旧便携版用户先查看 V1.1.0.1 公告，再下载安装版。
 
 ---
 

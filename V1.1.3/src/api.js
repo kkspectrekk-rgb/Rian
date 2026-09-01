@@ -8,7 +8,7 @@ export async function getSettings() {
 }
 
 export async function getAppVersion() {
-  return bridge?.getAppVersion ? bridge.getAppVersion() : { version: '1.1.2' };
+  return bridge?.getAppVersion ? bridge.getAppVersion() : { version: '1.1.3' };
 }
 
 export async function saveApiKey(apiKey) {
