@@ -1,173 +1,44 @@
 <div align="center">
-  <img src="./V1.1.3/src/assets/rain-icon.png" width="112" height="112" alt="Rain 图标">
-
-  # Rain
-
-  **一款拥有 Apple Music 式沉浸体验的 Windows 桌面音乐播放器**
-
-  搜索、播放、逐字歌词与封面动态色彩，都集中在一个安静而流畅的界面中。
-
-  ![Version](https://img.shields.io/badge/version-1.1.3-18181b?style=flat-square)
-  ![Platform](https://img.shields.io/badge/platform-Windows-0078D4?style=flat-square&logo=windows11&logoColor=white)
-  ![Electron](https://img.shields.io/badge/Electron-34-47848F?style=flat-square&logo=electron&logoColor=white)
-  ![React](https://img.shields.io/badge/React-18-20232A?style=flat-square&logo=react&logoColor=61DAFB)
-
-  [![Download Rain](https://img.shields.io/badge/Download-Rain%201.1.3-ffffff?style=for-the-badge&logo=github&logoColor=black)](https://github.com/kkspectrekk-rgb/Rian/releases/latest)
+  <img src="./app/src/assets/rain-icon.png" width="112" height="112" alt="Rain 图标">
+  <h1>Rain</h1>
+  <p>Windows 桌面音乐播放器 · 多源搜索 · 沉浸歌词 · 本地音乐</p>
+  <a href="https://github.com/kkspectrekk-rgb/Rian/releases/latest"><img src="https://img.shields.io/badge/下载-Windows_安装包-ef365c?style=for-the-badge&logo=windows" alt="下载 Windows 安装包"></a>
 </div>
 
----
+## 当前版本：1.1.6 液态玻璃试用版
 
-## 关于 Rain
+[前往下载页面](https://github.com/kkspectrekk-rgb/Rian/releases/tag/v1.1.6)，选择 `Rain.1.1.6-liquid-setup.exe`（Windows x64 安装版）。当前程序未签名，Windows 可能提示未知发布者。
 
-Rain 是一款运行在 Windows 上的本地桌面音乐播放器，使用 Electron、React 和 Vite 构建。
-
-界面以 Apple Music 的沉浸式播放体验为设计方向：播放器会读取歌曲封面边缘的颜色，将其转化为窗口背景与播放器边缘的动态光晕；歌词会跟随歌曲进度滚动，并支持逐字点亮、翻译和罗马音显示。
-
-Rain 不是网页播放器。它以独立 Windows 桌面程序运行，API 请求、媒体缓存和用户设置均由本机处理。
+源码统一放在 `app/`，不再按版本号重复创建源码目录。1.1.4、1.1.5 和 1.1.6 是连续迭代，详细区别见[版本记录](./CHANGELOG.md)。
 
 ## 功能亮点
 
-- **多音乐源搜索**：支持网易云音乐、QQ 音乐和酷狗音乐，并可在搜索框中直接切换来源。
-- **沉浸式歌词**：支持 LRC 歌词、翻译、罗马音和逐行同步滚动。
-- **分平台音质**：网易云、QQ 和酷狗分别使用各自原生音质档位，可设置三套默认音质；播放页会显示码率、格式或音频层级。
-- **动态封面色彩**：从封面四周提取颜色，同步生成窗口背景和播放器边缘光晕。
-- **播放模式**：支持顺序播放、随机播放和单曲循环，并显示当前模式。
-- **喜欢的音乐**：点击爱心即可收藏歌曲，并在独立页面中管理。
-- **最近播放**：独立页面展示播放历史，并支持一键全部播放。
-- **本地缓存**：缓存搜索结果、歌曲资料、封面和已成功下载的音频，减少重复 API 调用。
-- **本地音乐**：支持导入 MP3、FLAC、WAV 等文件，读取内嵌封面、标题、歌手、专辑、时长与歌词，并按关键词、歌手和专辑筛选。
-- **分类搜索**：一次搜索生成综合、单曲、歌手、专辑结果，分类切换不会重复消耗 API 次数。
-- **完整资料库**：歌手、专辑、本地歌曲和我的歌单页面齐全；收藏的歌手与专辑可直接打开详情，并优先复用本地缓存。
-- **歌单分享链接**：支持识别网易云、QQ 音乐和酷狗歌单长链接；网易云可用一次 API 调用补全整张歌单。
-- **听歌统计**：头像面板显示累计与今日听歌数据，并提供日、周、月趋势。
-- **可靠启动与单实例**：重复双击会唤醒已有窗口，不会创建多个 Rain 主实例；便携版使用独立临时目录避免并发启动卡死。
-- **托盘与关闭偏好**：关闭窗口时可选择退出或最小化到系统托盘，也可记住选择并在设置中随时更改。
-- **系统辅助设置**：兼容 Windows 减少动态效果、减少透明度和高对比度偏好。
-- **可自定义快捷键**：默认使用空格播放/暂停，Alt+方向键切歌与调节音量；设置页支持录制组合键并在松键后保存，快捷键调节音量时会显示当前百分比。
-- **更新方式**：安装版可在设置中检查更新，并下载运行安装包；旧便携版通过 V1.1.0.1 公告版引导切换到安装版。
+- 网易云、QQ 音乐、酷狗多源搜索，歌曲、歌手和专辑分类浏览。
+- 我的歌单、收藏、当前播放列表和最近播放；网易云、QQ 分享歌单导入与刷新。
+- 本地音乐导入、筛选、批量管理、封面与歌词读取。
+- 全窗口歌词页、翻译显示记忆、分平台音质与十段均衡器。
+- 网易云每日推荐登录入口、登录状态和推荐列表缓存。
+- 悬浮返回、页面前进/后退、正在播放歌曲定位。
+- 根据实际音频强弱和封面四边颜色变化的光晕律动。
+- 真正透出桌面的窗口背景、透明度与高光调节、实时预览，可恢复不透明外观。
+- 听歌统计、可自定义快捷键、单实例启动、托盘与关闭偏好。
 
-## V1.1.3 更新
+液态玻璃为风格模拟，不是 iOS 原生光学折射。透明效果受系统和显卡影响，Windows 11 支持时可启用 Acrylic。在线内容和音质取决于平台、账户权限及所配置服务。
 
-- 改为 Windows 安装版发布。
-- 安装版默认在安装目录创建 RainCache 缓存文件夹，设置页可更改缓存路径和清理缓存。
-- 支持 QQ 音乐歌单长链接导入，并支持新建自定义歌单。
-- 歌词页更多按钮可收藏歌曲到已有或新建歌单。
-- 本地歌曲支持全选、批量删除，操作按钮统一放在筛选框下方。
-- 修复安装更新后本地歌曲封面丢失的问题。
-- 歌词页控件重新布局：音量旁加入收藏，底部提供循环/随机和当前播放列表。
-- 同一歌单内点歌保留原队列并从当前位置播放，切换其他歌单时才替换队列。
+## 配置与数据
 
-完整内容请查看 [更新日志 v1.1.3](./V1.1.3/更新日志v1.1.3.txt)。
+在线搜索使用 ChKSz API，在软件设置中填写自己的 Key。Key 和登录信息仅在本机使用，不应提交至仓库或公开在截图中。
 
-## 下载 Rain
+为兼容旧版，用户数据继续保存在 `%APPDATA%\Aurora Music`。安装版默认缓存位于安装目录的 `RainCache`，可在设置中更改或清理；本地封面与账户设置独立保存。升级时保留用户数据目录，重要数据建议备份。
 
-[**前往 GitHub Releases 下载 Rain 1.1.3 →**](https://github.com/kkspectrekk-rgb/Rian/releases/latest)
+旧便携版用户请查看 [v1.1.0.1 迁移公告](https://github.com/kkspectrekk-rgb/Rian/releases/tag/v1.1.0.1)。
 
-在最新版发行页面的 **Assets** 区域选择 `Rain.1.1.3-setup.exe`。这是 Windows x64 安装版。
-
-也可以使用 [Rain 1.1.3-setup.exe 直接下载链接](https://github.com/kkspectrekk-rgb/Rian/releases/download/v1.1.3/Rain.1.1.3-setup.exe)。
-
-> 当前程序未进行代码签名，Windows 首次运行时可能显示“未知发布者”提示。旧便携版用户可先使用 `V1.1.0.1` 公告版查看迁移说明。
-
-## 快速开始
-
-### 环境要求
-
-- Windows 10 或 Windows 11（x64）
-- Node.js 20 或更高版本
-- pnpm
-
-### 从源码运行
+## 开发
 
 ```powershell
-git clone https://github.com/kkspectrekk-rgb/Rian.git
-cd Rian\V1.1.3
-pnpm install
-pnpm dev
+cd app
+npm ci
+npm run dev
 ```
 
-### 构建安装版
-
-```powershell
-cd V1.1.3
-pnpm install
-pnpm dist:win
-```
-
-构建完成后，安装程序会生成在：
-
-```text
-V1.1.3\release\Rain.1.1.3-setup.exe
-```
-
-
-## 配置音乐 API
-
-Rain 使用 ChKSz API 提供在线搜索、歌曲解析和歌词读取能力。
-
-1. 启动 Rain，打开左下角的“设置”。
-2. 前往 [ChKSz API](https://api.chksz.com/) 获取自己的 API Key。
-3. 将以 `chksz_` 开头的 Key 填入设置页面并保存。
-4. 返回搜索页面，选择音乐源并开始搜索。
-
-API Key 通过 Electron 主进程调用 Windows `safeStorage` 加密后保存在当前设备，不会写入项目源码、界面日志或公开 URL。
-
-搜索页面还会显示 API 免费剩余次数、兑换剩余次数和速率限制。Rain 每 30 秒同步一次账户状态；如果登录失效，会显示“未连接”并允许重新打开账户页面。
-
-## 本地数据与缓存
-
-为了保留旧版本设置，Rain 当前继续使用以下用户数据目录：
-
-```text
-%APPDATA%\Aurora Music
-```
-
-其中包括：
-
-- 加密后的 API Key
-- ChKSz API 登录会话
-- 喜欢的音乐和最近播放记录
-- 搜索、歌曲资料、封面和音频缓存
-
-缓存目录：
-
-```text
-%APPDATA%\Aurora Music\rain-media-cache
-```
-
-## 项目结构
-
-```text
-Rian/
-├─ README.md                    # 仓库主页说明
-├─ V1.1.0.1/                  # 便携公告版，提示旧用户切换到安装版
-├─ V1.1.3/                    # 当前安装版
-│  ├─ electron/                # Electron 主进程、窗口与本地缓存
-│  ├─ src/                     # React 界面、API 适配与歌词解析
-│  ├─ build/                   # Rain 应用图标
-│  ├─ scripts/                 # 图标生成脚本
-│  ├─ package.json             # 依赖与安装版构建配置
-│  └─ 更新日志v1.1.3.txt
-└─ .gitignore
-```
-
-## 技术栈
-
-| 技术 | 用途 |
-| --- | --- |
-| Electron | Windows 桌面窗口、本地存储、媒体缓存与安全 API 请求 |
-| React | 播放器界面和状态管理 |
-| Vite | 开发服务器与前端构建 |
-| Lucide React | 界面图标 |
-| electron-builder | 生成 Windows NSIS 安装版 |
-
-## 版本管理
-
-仓库包含 **V1.1.0.1** 便携公告版和 **V1.1.3** 安装版；旧便携版用户先查看 V1.1.0.1 公告，再下载安装版。
-
----
-
-<div align="center">
-  <strong>Rain</strong><br>
-  让音乐像雨一样，安静地填满整个窗口。
-</div>
+使用 Electron、React、Vite 和 electron-builder。构建与测试见[开发文档](./docs/DEVELOPMENT.md)。请仅在拥有相应权限的情况下使用音乐服务与内容。

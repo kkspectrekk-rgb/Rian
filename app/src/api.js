@@ -2,6 +2,13 @@ const API_BASE = 'https://api.chksz.com';
 
 const bridge = window.musicBridge;
 
+export async function preparePlaybackUrl(url) {
+  if (!url || /^(blob:|rain-cache:)/i.test(url) || !bridge?.preparePlayback) return url;
+  const result = await bridge.preparePlayback(url);
+  if (!result?.ok) throw new Error(result?.message || '无法打开音频');
+  return result.url;
+}
+
 export async function getSettings() {
   if (bridge) return bridge.getSettings();
   return { hasApiKey: Boolean(localStorage.getItem('aurora_api_key')), closeAction: localStorage.getItem('rain_close_action') || 'ask' };

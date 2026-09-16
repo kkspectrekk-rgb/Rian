@@ -1,0 +1,17 @@
+.page-navigation { position: fixed; top: 52px; left: 280px; z-index: 60; display: flex; align-items: center; gap: 4px; padding: 4px; border: 1px solid #ffffff20; border-radius: 12px; background: #232226; box-shadow: 0 8px 24px #0005; -webkit-app-region: no-drag; }
+.page-navigation button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 30px; min-width: 30px; padding: 0 6px; border: 0; border-radius: 7px; background: transparent; cursor: pointer; color: #eeeeef; }
+.page-navigation .page-return { padding-inline: 9px; margin-right: 3px; font-size: 11px; border-right: 1px solid #ffffff20; }
+.page-navigation button:disabled { opacity: .28; cursor: default; }
+.page-navigation button:active:not(:disabled) { transform: scale(.96); }
+.app-shell.lyrics-mode .page-navigation { display: none; }
+.base-view > section { padding-top: 104px; }
+.entity-detail-heading { padding-top: 0; }
+.lyrics-options { top: 10px; bottom: auto; height: 30px; }
+.lyrics-options > .lyric-toggle { height: 30px; }
+.album-frame { isolation: isolate; }
+.album-frame::before { display: none; }
+.beat-aura { position: absolute; inset: -10px; z-index: -1; border-radius: 26px; background: conic-gradient(from 0deg, var(--edge-top), var(--edge-right), var(--edge-bottom), var(--edge-left), var(--edge-top)); filter: blur(16px); opacity: .16; pointer-events: none; transform: scale(1); }
+@media (max-width: 1120px) { .page-navigation { left: 253px; } }
+@media (max-width: 880px) { .page-navigation { left: 108px; } }
+@media (hover: hover) and (pointer: fine) { .page-navigation button:hover:not(:disabled) { background: #ffffff12; } }
+@media (prefers-reduced-motion: reduce) { .beat-aura { transform: none !important; opacity: .16 !important; } }

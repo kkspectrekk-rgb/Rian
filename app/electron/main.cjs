@@ -5,6 +5,8 @@ const crypto = require('node:crypto');
 const { Readable, Transform } = require('node:stream');
 const { pipeline } = require('node:stream/promises');
 const { spawn } = require('node:child_process');
+const { fileURLToPath } = require('node:url');
+const playbackSources = new Map();
 
 const API_BASE = 'https://api.chksz.com';
 const ACCOUNT_URL = `${API_BASE}/login.html`;
@@ -14,7 +16,7 @@ const NETEASE_PARTITION = 'persist:rain-netease-account';
 const LEGACY_USER_DATA = path.join(app.getPath('appData'), 'Aurora Music');
 const DEV_INSTANCE = process.env.RAIN_DEV_INSTANCE === '1';
 app.setPath('userData', DEV_INSTANCE ? path.join(app.getPath('appData'), 'Rain Music Dev') : LEGACY_USER_DATA);
-protocol.registerSchemesAsPrivileged([{ scheme: 'rain-cache', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }]);
+protocol.registerSchemesAsPrivileged(['rain-cache', 'rain-stream'].map((scheme) => ({ scheme, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true } })));
 const ALLOWED_PATHS = new Set([
   '/api/163_music',
   '/api/163_search',
@@ -32,6 +34,20 @@ const defaultCacheDirectory = () => app.isPackaged
 const mediaCachePath = () => readSettingsData().cacheDirectory || defaultCacheDirectory();
 const cacheIndexPath = () => path.join(mediaCachePath(), 'index.json');
 let mainWindow;
+let appliedGlassMaterial;
+function normalizeWindowAppearance(value = {}) {
+  return { enabled: value.enabled !== false, transparency: Number.isFinite(value.transparency) ? Math.max(0, Math.min(100, Math.round(value.transparency))) : 75, gloss: Number.isFinite(value.gloss) ? Math.max(0, Math.min(100, Math.round(value.gloss))) : 70, frosted: value.frosted === true };
+}
+function applyWindowAppearance(value) {
+  const appearance = normalizeWindowAppearance(value);
+  const acrylicSupported = process.platform === 'win32' && Number(require('node:os').release().split('.')[2]) >= 22621;
+  const material = appearance.enabled && appearance.frosted && appearance.transparency < 100 && acrylicSupported ? 'acrylic' : 'none';
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.setBackgroundColor('#00000000');
+    if (appliedGlassMaterial !== material) { mainWindow.setBackgroundMaterial(material); appliedGlassMaterial = material; }
+  }
+  return { ok: true, appearance, acrylicSupported, material };
+}
 let accountWindow;
 let neteaseWindow;
 let tray;
@@ -134,6 +150,7 @@ function cacheContentType(filePath) {
 function cachedFileResponse(filePath, request) {
   const size = fs.statSync(filePath).size;
   const headers = new Headers({
+    'Access-Control-Allow-Origin': '*',
     'Accept-Ranges': 'bytes',
     'Cache-Control': 'private, max-age=31536000, immutable',
     'Content-Type': cacheContentType(filePath),
@@ -702,7 +719,8 @@ function createWindow() {
     minWidth: 980,
     minHeight: 680,
     show: false,
-    backgroundColor: '#151417',
+    backgroundColor: '#00000000',
+    transparent: true,
     icon: path.join(__dirname, '..', 'build', 'icon.png'),
     frame: false,
     webPreferences: {
@@ -714,6 +732,8 @@ function createWindow() {
     },
   });
   mainWindow = win;
+  appliedGlassMaterial = undefined;
+  applyWindowAppearance(readSettingsData().windowAppearance);
   const devUrl = process.env.VITE_DEV_SERVER_URL;
   let retriedLoad = false;
   const revealWindow = () => {
@@ -891,6 +911,44 @@ function readDirectorySize(directory) {
 
 async function startApplication() {
   app.setAppUserModelId('com.aurora.music');
+  // Stream audio through a CORS-enabled local origin for the Web Audio graph.
+  // Only opaque, in-memory tokens can access registered media; no cookies or API keys are forwarded.
+  ipcMain.handle('media:prepare-playback', (event, rawUrl) => {
+    try {
+      if (event.sender !== mainWindow?.webContents) throw new Error('无效的播放请求');
+      if (typeof rawUrl !== 'string' || rawUrl.length > 16384) throw new Error('无效的音频地址');
+      const url = new URL(rawUrl);
+      if (!['http:', 'https:', 'file:'].includes(url.protocol) || url.username || url.password) throw new Error('不支持的音频地址');
+      if (url.protocol === 'file:') {
+        const filename = fileURLToPath(url);
+        if (!/\.(mp3|flac|wav|m4a|aac|ogg|opus|wma|aiff?|ape|webm)$/i.test(filename) || !fs.statSync(filename).isFile()) throw new Error('本地音频文件不存在');
+      }
+      const token = crypto.randomBytes(24).toString('hex');
+      playbackSources.set(token, url.href);
+      while (playbackSources.size > 64) playbackSources.delete(playbackSources.keys().next().value);
+      return { ok: true, url: `rain-stream://audio/${token}` };
+    } catch { return { ok: false, message: '无法打开音频地址或本地文件' }; }
+  });
+  protocol.handle('rain-stream', async (request) => {
+    const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Range', 'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS' };
+    if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
+    if (!['GET', 'HEAD'].includes(request.method)) return new Response(null, { status: 405, headers: cors });
+    try {
+      const url = new URL(request.url);
+      const source = url.hostname === 'audio' && playbackSources.get(url.pathname.slice(1));
+      if (!source) return new Response(null, { status: 404, headers: cors });
+      if (source.startsWith('file:')) return cachedFileResponse(fileURLToPath(source), request);
+      const headers = { 'Accept-Encoding': 'identity' };
+      if (request.headers.get('range')) headers.Range = request.headers.get('range');
+      const upstream = await fetch(source, { method: request.method, headers, redirect: 'follow', signal: AbortSignal.any([request.signal, AbortSignal.timeout(180000)]) });
+      const responseHeaders = new Headers(cors);
+      for (const key of ['content-type', 'content-length', 'content-range', 'accept-ranges']) {
+        if (upstream.headers.has(key)) responseHeaders.set(key, upstream.headers.get(key));
+      }
+      responseHeaders.set('Cache-Control', 'no-store');
+      return new Response(request.method === 'HEAD' ? null : upstream.body, { status: upstream.status, headers: responseHeaders });
+    } catch { return new Response(null, { status: 502, headers: cors }); }
+  });
   const neteaseSession = session.fromPartition(NETEASE_PARTITION);
   neteaseSession.cookies.on('changed', (_event, cookie) => {
     if (['MUSIC_U', 'MUSIC_A'].includes(cookie.name)) void readNeteaseCookieStatus();
@@ -914,6 +972,18 @@ async function startApplication() {
     }
   });
   ipcMain.handle('settings:get', () => ({ hasApiKey: Boolean(readEncryptedKey()), closeAction: getCloseAction() }));
+  ipcMain.handle('appearance:get', (event) => {
+    if (event.sender !== mainWindow?.webContents) return { ok: false };
+    return applyWindowAppearance(readSettingsData().windowAppearance);
+  });
+  ipcMain.handle('appearance:apply', (event, value) => {
+    if (event.sender !== mainWindow?.webContents || !value || typeof value !== 'object') return { ok: false };
+    try {
+      const result = applyWindowAppearance(value);
+      if (value.persist === true) writeSettingsData({ ...readSettingsData(), windowAppearance: result.appearance });
+      return result;
+    } catch { return { ok: false, message: '无法应用系统材质，请关闭系统磨砂后重试。' }; }
+  });
   ipcMain.handle('app:get-version', () => ({ version: app.getVersion() }));
   ipcMain.handle('settings:save-key', (_event, apiKey) => {
     if (typeof apiKey !== 'string' || !/^chksz_[A-Za-z0-9_-]+$/.test(apiKey.trim())) {

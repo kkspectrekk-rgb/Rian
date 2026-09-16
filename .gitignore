@@ -15,6 +15,14 @@
 **/*.log
 **/settings.json
 **/rain-media-cache/
+**/RainCache/
+**/Cookies
+**/Cookies-journal
+**/Local Storage/
+**/Session Storage/
+**/rain-local-covers/
+**/netease-daily-recommendations.json
+/artifacts/
 
 # OS and editor files
 .DS_Store

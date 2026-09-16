@@ -1,4 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { NavigationContext, PageNavigation, useNavigation, usePageHistory } from './navigation.jsx';
+import BeatAura from './BeatAura.jsx';
+import LiquidGlassSettings, { LiquidWindowEffects } from './LiquidGlass.jsx';
 import {
   Album,
   ArrowLeft,
@@ -45,6 +48,7 @@ import {
 import {
   apiRequest,
   cacheAudio,
+  preparePlaybackUrl,
   cacheTrackKey,
   checkForUpdates,
   clearCache,
@@ -88,6 +92,9 @@ import {
 } from './api';
 import { parseLyrics } from './lyrics';
 import rainIcon from './assets/rain-icon.png';
+import Equalizer from './Equalizer.jsx';
+import { applyEqualizer, createEqualizerGraph, EQ_FREQUENCIES, EQ_STORAGE_KEY, loadEqualizer } from './equalizer.js';
+import { ActionSurface, MetadataLink, PlaybackUiContext, TrackListFrame } from './playback-ui';
 
 const SOURCE_META = {
   netease: { label: '网易云音乐', short: '网易云', color: '#fb3b58' },
@@ -110,9 +117,14 @@ const QUALITY_OPTIONS = {
 
 const DEFAULT_QUALITIES = { netease: 'lossless', qq: 'flac', kugou: 'flac' };
 const RELEASE_NOTES = [
-  '歌词详细页现在覆盖整个软件，修复背景透明与页面重叠。',
-  '歌词页加入音量调节，并会记住翻译显示开关。',
-  '首页加入网易云音乐每日推荐与登录状态。',
+  '液态玻璃试用：窗口真正透出桌面，设置可实时调节整窗背景透明度、玻璃高光和系统磨砂。',
+  '增强封面律动：光晕随音频响度和强拍明显扩张、收缩，保持四边取色及平滑回落。',
+  '恢复原有外观，移除玻璃效果与透明度设置。',
+  '返回按钮保持悬浮；支持页面后退、前进和滚动位置恢复。',
+  '封面炫光随音频律动，歌词顶部功能按钮与窗口按钮水平对齐。',
+  '网易云、QQ 歌单可手动刷新，重新获取最新歌曲。',
+  '点击歌手或专辑名称可搜索，列表支持定位正在播放的歌曲。',
+  '歌词页新增十段均衡器，支持拖动、整数输入和设置记忆；移除音标显示。',
 ];
 
 function loadLyricsTranslationSetting() {
@@ -538,26 +550,27 @@ function QuotaStatus({ quota, onConnect }) {
 }
 
 function TrackRows({ tracks, emptyTitle, emptyCopy, onPlay, activeRequest, onRemove, selectable = false, selectedKeys = [], onToggleSelect, queueContextKey = '' }) {
+  const { current } = useContext(PlaybackUiContext);
   if (!tracks.length) {
     return <div className="empty-state"><Heart /><strong>{emptyTitle}</strong><span>{emptyCopy}</span></div>;
   }
   return (
-    <div className="results-list collection-list">
+    <TrackListFrame tracks={tracks}><div className="results-list collection-list">
       {tracks.map((item, index) => (
-        <div className={`saved-track-row ${selectable ? 'selectable' : ''}`} key={trackKey(item)}>
+        <div className={`saved-track-row ${selectable ? 'selectable' : ''}`} data-track-key={trackKey(item)} data-current={trackKey(item) === trackKey(current)} key={trackKey(item)}>
           {selectable && <button className="track-select" type="button" aria-pressed={selectedKeys.includes(trackKey(item))} onClick={() => onToggleSelect?.(trackKey(item))}>{selectedKeys.includes(trackKey(item)) ? <Check size={15} /> : null}</button>}
-          <button className="saved-track-main" onClick={() => onPlay(item, tracks, queueContextKey)} disabled={Boolean(activeRequest)}>
+          <ActionSurface className="saved-track-main" onClick={() => onPlay(item, tracks, queueContextKey)} disabled={Boolean(activeRequest)}>
             <span className="result-index">{activeRequest === trackKey(item) ? <LoaderCircle className="spin" size={16} /> : String(index + 1).padStart(2, '0')}</span>
             <span className="result-art" style={{ backgroundImage: `url(${item.cover || rainIcon})` }} />
-            <span className="result-title"><strong>{item.title}</strong><small>{item.artist}</small></span>
-            <span className="result-album">{item.album}</span>
+            <span className="result-title"><strong>{item.title}</strong><small><MetadataLink item={item} kind="artist" /></small></span>
+            <span className="result-album"><MetadataLink item={item} kind="album" /></span>
             <SourceMark source={item.source} />
             <span className="result-play"><Play size={14} fill="currentColor" /></span>
-          </button>
+          </ActionSurface>
           {onRemove && <IconButton className="saved-remove" label={`从喜欢的音乐中移除 ${item.title}`} onClick={() => onRemove(item)}><X size={15} /></IconButton>}
         </div>
       ))}
-    </div>
+    </div></TrackListFrame>
   );
 }
 
@@ -696,6 +709,7 @@ function SettingsView({ hasApiKey, onSaved, notify, onOpenAccount, closeAction, 
   return (
     <section className="settings-view content-enter">
       <header className="page-heading"><p>偏好设置</p><h1>设置</h1></header>
+      <LiquidGlassSettings />
       <div className="settings-card">
         <div className="setting-icon"><KeyRound size={21} /></div>
         <div className="setting-copy">
@@ -876,7 +890,8 @@ function ReleaseAnnouncementDialog({ version, onClose }) {
   );
 }
 
-function SearchView({ active, hasApiKey, onNeedKey, onSelect, onPlayAll, activeRequest, quota, onOpenAccount, savedArtists, savedAlbums, onSaveArtist, onSaveAlbum, entityRequest, liked, onToggleLike }) {
+function SearchView({ active, hasApiKey, onNeedKey, onSelect, onPlayAll, activeRequest, quota, onOpenAccount, savedArtists, savedAlbums, onSaveArtist, onSaveAlbum, entityRequest, metadataSearch, liked, onToggleLike }) {
+  const { current: playingTrack } = useContext(PlaybackUiContext);
   const [query, setQuery] = useState('');
   const [source, setSource] = useState('netease');
   const [results, setResults] = useState([]);
@@ -887,7 +902,10 @@ function SearchView({ active, hasApiKey, onNeedKey, onSelect, onPlayAll, activeR
   const [error, setError] = useState('');
   const [searched, setSearched] = useState(false);
   const [fromCache, setFromCache] = useState(false);
-  const [entityDetail, setEntityDetail] = useState(null);
+  const navigation = useNavigation();
+  const entityDetail = navigation.route.view === 'search' ? navigation.route.entityDetail || null : null;
+  const setEntityDetail = (value) => navigation.update(navigation.route.id, (route) => ({ entityDetail: typeof value === 'function' ? value(route.entityDetail) : value }));
+  const searchGeneration = useRef(0);
 
   const enrich = async (items) => {
     const cached = await hydrateCachedTracks(items);
@@ -909,6 +927,7 @@ function SearchView({ active, hasApiKey, onNeedKey, onSelect, onPlayAll, activeR
     const keyword = (override?.query ?? query).trim();
     const nextSource = override?.source ?? source;
     if (!keyword) return;
+    const generation = ++searchGeneration.current;
     setEntityDetail(null);
     if (override) { setQuery(keyword); setSource(nextSource); }
     setLoading(true);
@@ -919,8 +938,11 @@ function SearchView({ active, hasApiKey, onNeedKey, onSelect, onPlayAll, activeR
     const searchCacheKey = `${nextSource}:${keyword.toLocaleLowerCase()}`;
     if (!force) {
       const saved = await getCachedSearch(searchCacheKey);
+      if (generation !== searchGeneration.current) return;
       if (saved?.length) {
-        setResults(await enrich(saved));
+        const enriched = await enrich(saved);
+        if (generation !== searchGeneration.current) return;
+        setResults(enriched);
         setFromCache(true);
         setLoading(false);
         return;
@@ -934,6 +956,7 @@ function SearchView({ active, hasApiKey, onNeedKey, onSelect, onPlayAll, activeR
     const endpoint = nextSource === 'netease' ? '/api/163_search' : nextSource === 'qq' ? '/api/qq_music' : '/api/kugou_music';
     const params = nextSource === 'netease' ? { keyword, limit: 30, offset: 0 } : { msg: keyword, num: 30 };
     const response = await apiRequest(endpoint, params);
+    if (generation !== searchGeneration.current) return;
     setLoading(false);
     if (!response.ok) {
       setResults([]);
@@ -942,7 +965,8 @@ function SearchView({ active, hasApiKey, onNeedKey, onSelect, onPlayAll, activeR
     }
     const normalized = normalizeSearch(response.data, nextSource).map((item) => ({ ...item, searchKeyword: keyword }));
     await putCachedSearch(searchCacheKey, normalized);
-    setResults(await enrich(normalized));
+    const enriched = await enrich(normalized);
+    if (generation === searchGeneration.current) setResults(enriched);
   };
 
   const playResult = async (item, items) => {
@@ -953,55 +977,71 @@ function SearchView({ active, hasApiKey, onNeedKey, onSelect, onPlayAll, activeR
   };
 
   const openEntity = async (entity, kind) => {
+    const generation = ++searchGeneration.current;
     const cacheKey = `entity:${kind}:${entity.source}:${entity.name.toLocaleLowerCase()}`;
-    setEntityDetail({ ...entity, kind, loading: true, error: '' });
+    const detailPageId = navigation.push({ view: 'search', entityDetail: { ...entity, kind, loading: true, error: '' } });
+    const setEntityDetail = (entityDetail) => navigation.update(detailPageId, { entityDetail });
     const cached = await getCachedSearch(cacheKey);
+    if (generation !== searchGeneration.current) return;
     if (cached?.length) {
-      setEntityDetail({ ...entity, kind, loading: false, fromCache: true, tracks: await enrich(cached) });
+      const tracks = await enrich(cached);
+      if (generation === searchGeneration.current) setEntityDetail({ ...entity, kind, loading: false, fromCache: true, tracks });
       return;
     }
     if (!hasApiKey) { setEntityDetail(null); onNeedKey(); return; }
     const endpoint = entity.source === 'netease' ? '/api/163_search' : entity.source === 'qq' ? '/api/qq_music' : '/api/kugou_music';
     const params = entity.source === 'netease' ? { keyword: entity.name, limit: 50, offset: 0 } : { msg: entity.name, num: 50 };
     const response = await apiRequest(endpoint, params);
+    if (generation !== searchGeneration.current) return;
     if (!response.ok) { setEntityDetail({ ...entity, kind, loading: false, error: response.message || '无法获取完整曲目' }); return; }
     const all = normalizeSearch(response.data, entity.source).map((track) => ({ ...track, searchKeyword: entity.name }));
     const name = entity.name.toLocaleLowerCase();
     const matched = all.filter((track) => kind === 'artist' ? String(track.artist).toLocaleLowerCase().split(/\s*[/、]\s*/).includes(name) : String(track.album).toLocaleLowerCase() === name);
     const tracks = matched.length ? matched : all;
     await putCachedSearch(cacheKey, tracks);
-    setEntityDetail({ ...entity, kind, loading: false, tracks: await enrich(tracks) });
+    const enriched = await enrich(tracks);
+    if (generation === searchGeneration.current) setEntityDetail({ ...entity, kind, loading: false, tracks: enriched });
   };
 
+  const consumedEntityRequest = useRef(null);
   useEffect(() => {
-    if (active && entityRequest?.requestId) void openEntity(entityRequest.entity, entityRequest.kind);
+    if (active && entityRequest?.requestId && consumedEntityRequest.current !== entityRequest.requestId) {
+      consumedEntityRequest.current = entityRequest.requestId;
+      void openEntity(entityRequest.entity, entityRequest.kind);
+    }
   }, [active, entityRequest?.requestId]);
 
-  const closeResults = () => { setQuery(''); setResults([]); setSearched(false); setError(''); setFromCache(false); setEntityDetail(null); setTab('all'); };
+  useEffect(() => {
+    if (!metadataSearch?.requestId) return;
+    setTab('all');
+    void search(null, false, metadataSearch);
+  }, [metadataSearch?.requestId]);
+
+  const closeResults = () => { searchGeneration.current++; setLoading(false); setQuery(''); setResults([]); setSearched(false); setError(''); setFromCache(false); setEntityDetail(null); setTab('all'); };
 
   const artists = useMemo(() => aggregateEntities(results, 'artist'), [results]);
   const albums = useMemo(() => aggregateEntities(results, 'album'), [results]);
   const entityRows = (items, kind) => <div className="entity-grid">{items.map((item) => {
     const saved = (kind === 'artist' ? savedArtists : savedAlbums).some((entry) => entry.id === item.id);
     const art = artPlaceholder(item, kind === 'artist' ? '人' : '辑');
-    return <article className="entity-card" key={item.id}><button className="entity-main" type="button" onClick={() => openEntity(item, kind)}><span className={`entity-art ${kind} ${art.className || ''}`} data-art-label={art['data-art-label']} style={art.style} /><div><strong>{item.name}</strong><small>{kind === 'artist' ? `${item.tracks.length} 首匹配歌曲` : item.artist}</small></div></button><button type="button" className={`entity-save ${saved ? 'saved' : ''}`} aria-label={saved ? '取消收藏' : '收藏到资料库'} onClick={() => (kind === 'artist' ? onSaveArtist : onSaveAlbum)(item)}><Heart size={17} fill={saved ? 'currentColor' : 'none'} /></button></article>;
+    return <article className="entity-card" key={item.id}><ActionSurface className="entity-main" type="button" onClick={() => openEntity(item, kind)}><span className={`entity-art ${kind} ${art.className || ''}`} data-art-label={art['data-art-label']} style={art.style} /><div><strong>{item.name}</strong><small>{kind === 'artist' ? `${item.tracks.length} 首匹配歌曲` : <MetadataLink item={item} kind="artist" />}</small></div></ActionSurface><button type="button" className={`entity-save ${saved ? 'saved' : ''}`} aria-label={saved ? '取消收藏' : '收藏到资料库'} onClick={() => (kind === 'artist' ? onSaveArtist : onSaveAlbum)(item)}><Heart size={17} fill={saved ? 'currentColor' : 'none'} /></button></article>;
   })}</div>;
 
-  const trackRows = (items = results) => <div className="results-list">{items.map((item, index) => {
+  const trackRows = (items = results) => <TrackListFrame tracks={items}><div className="results-list">{items.map((item, index) => {
     const isLiked = liked.some((track) => trackKey(track) === trackKey(item));
     return (
-      <div className="saved-track-row search-track-row" key={`${item.source}-${item.id}-${index}`}>
-        <button className="saved-track-main result-row" onClick={() => playResult(item, items)} disabled={Boolean(activeRequest)}>
+      <div className="saved-track-row search-track-row" data-track-key={trackKey(item)} data-current={trackKey(item) === trackKey(playingTrack)} key={`${item.source}-${item.id}-${index}`}>
+        <ActionSurface className="saved-track-main result-row" onClick={() => playResult(item, items)} disabled={Boolean(activeRequest)}>
           <span className="result-index">{activeRequest === trackKey(item) ? <LoaderCircle className="spin" size={16} /> : String(index + 1).padStart(2, '0')}</span>
           {(() => { const art = artPlaceholder(item); return <span className={`result-art ${art.className || ''}`} data-art-label={art['data-art-label']} style={art.style} />; })()}
-          <span className="result-title"><strong>{item.title}</strong><small>{item.artist}</small></span><span className="result-album">{item.album}</span><SourceMark source={item.source} /><span className="result-play"><Play size={14} fill="currentColor" /></span>
-        </button>
+          <span className="result-title"><strong>{item.title}</strong><small><MetadataLink item={item} kind="artist" /></small></span><span className="result-album"><MetadataLink item={item} kind="album" /></span><SourceMark source={item.source} /><span className="result-play"><Play size={14} fill="currentColor" /></span>
+        </ActionSurface>
         <IconButton className={`saved-remove search-favorite ${isLiked ? 'liked' : ''}`} label={isLiked ? `取消喜欢 ${item.title}` : `喜欢 ${item.title}`} onClick={() => onToggleLike(item)}><Heart size={15} fill={isLiked ? 'currentColor' : 'none'} /></IconButton>
       </div>
     );
-  })}</div>;
+  })}</div></TrackListFrame>;
 
-  if (entityDetail) return <section className="search-view entity-detail-view content-enter"><header className="entity-detail-heading"><button className="entity-back" type="button" onClick={() => setEntityDetail(null)}><ArrowLeft size={18} />返回搜索结果</button></header><div className="entity-detail-hero">{(() => { const art = artPlaceholder(entityDetail); return <span className={`entity-detail-art ${entityDetail.kind} ${art.className || ''}`} data-art-label={art['data-art-label']} style={art.style} />; })()}<div><p>{entityDetail.kind === 'artist' ? '歌手' : '专辑'} · {SOURCE_META[entityDetail.source]?.label}</p><h1>{entityDetail.name}</h1><span>{entityDetail.loading ? '正在使用一次调用获取完整曲目…' : entityDetail.error ? entityDetail.error : `${entityDetail.tracks?.length || 0} 首曲目${entityDetail.fromCache ? ' · 本地缓存' : ''}`}</span>{!entityDetail.loading && !entityDetail.error && entityDetail.tracks?.length > 0 && <button className="primary-button play-all-inline" type="button" onClick={() => onPlayAll(entityDetail.tracks)}><Play size={16} />全部播放</button>}</div></div>{entityDetail.loading ? <div className="empty-state"><LoaderCircle className="spin" /><strong>正在获取完整曲目</strong><span>完成后再次打开会直接使用本地缓存。</span></div> : entityDetail.error ? <div className="empty-state error-state"><span className="error-dot">!</span><strong>无法加载详情</strong><span>{entityDetail.error}</span></div> : trackRows(entityDetail.tracks || [])}</section>;
+  if (entityDetail) return <section className="search-view entity-detail-view content-enter"><header className="entity-detail-heading"></header><div className="entity-detail-hero">{(() => { const art = artPlaceholder(entityDetail); return <span className={`entity-detail-art ${entityDetail.kind} ${art.className || ''}`} data-art-label={art['data-art-label']} style={art.style} />; })()}<div><p>{entityDetail.kind === 'artist' ? '歌手' : '专辑'} · {SOURCE_META[entityDetail.source]?.label}</p><h1><MetadataLink item={entityDetail} kind={entityDetail.kind} name={entityDetail.name} /></h1><span>{entityDetail.loading ? '正在使用一次调用获取完整曲目…' : entityDetail.error ? entityDetail.error : `${entityDetail.tracks?.length || 0} 首曲目${entityDetail.fromCache ? ' · 本地缓存' : ''}`}</span>{!entityDetail.loading && !entityDetail.error && entityDetail.tracks?.length > 0 && <button className="primary-button play-all-inline" type="button" onClick={() => onPlayAll(entityDetail.tracks)}><Play size={16} />全部播放</button>}</div></div>{entityDetail.loading ? <div className="empty-state"><LoaderCircle className="spin" /><strong>正在获取完整曲目</strong><span>完成后再次打开会直接使用本地缓存。</span></div> : entityDetail.error ? <div className="empty-state error-state"><span className="error-dot">!</span><strong>无法加载详情</strong><span>{entityDetail.error}</span></div> : trackRows(entityDetail.tracks || [])}</section>;
 
   return (
     <section className="search-view content-enter" aria-hidden={!active}>
@@ -1015,7 +1055,7 @@ function SearchView({ active, hasApiKey, onNeedKey, onSelect, onPlayAll, activeR
             label="搜索源"
             value={source}
             options={ONLINE_SOURCES.map((value) => [value, SOURCE_META[value].label])}
-            onChange={(nextSource) => { setSource(nextSource); setResults([]); setSearched(false); setFromCache(false); }}
+            onChange={(nextSource) => { closeResults(); setSource(nextSource); }}
           />
         </form>
         <QuotaStatus quota={quota} onConnect={onOpenAccount} />
@@ -1062,7 +1102,7 @@ function DailyRecommendationsView({ status, tracks, loading, error, onLogin, onR
   return (
     <section className="liked-view daily-view content-enter">
       <header className="page-heading daily-heading">
-        <button className="entity-back daily-back" type="button" onClick={onBack}><ArrowLeft size={18} />返回首页</button>
+
         <div className="liked-symbol daily-symbol"><Sparkles size={34} /></div>
         <div><p>网易云音乐</p><h1>每日推荐</h1><span>{tracks.length ? `${tracks.length} 首歌曲 · 每天 06:00 更新` : '登录后读取你的专属推荐'}</span></div>
         <div className="daily-heading-actions">
@@ -1083,7 +1123,7 @@ function RecentView({ tracks, onPlay, onPlayAll, onBack, activeRequest }) {
   return (
     <section className="liked-view content-enter">
       <header className="page-heading recent-heading">
-        <button className="entity-back recent-back" type="button" onClick={onBack}><ArrowLeft size={18} />返回首页</button>
+
         <div className="liked-symbol recent-symbol"><Clock3 size={34} /></div>
         <div><p>你的资料库</p><h1>最近播放</h1><span>{tracks.length} 首歌曲</span></div>
         <button className="primary-button" type="button" disabled={!tracks.length} onClick={() => onPlayAll(tracks)}><Play size={16} />全部播放</button>
@@ -1107,7 +1147,7 @@ function LikesView({ liked, onPlay, onPlayAll, onRemove, activeRequest }) {
 }
 
 function EntityLibraryView({ title, subtitle, items, kind, onToggle, onOpen }) {
-  return <section className="entity-library content-enter"><header className="page-heading"><p>你的资料库</p><h1>{title}</h1><span>{items.length} 个收藏</span></header>{items.length ? <div className="library-entity-grid">{items.map((item) => <article className="library-entity-card" key={item.id}><button className="library-entity-main" type="button" onClick={() => onOpen(item, kind)}><span className={`library-entity-art ${kind}`} style={{ backgroundImage: `url(${item.cover || rainIcon})` }} /><span><strong>{item.name}</strong><small>{item.artist || `${item.tracks?.length || 0} 首歌曲`}</small></span></button><button className="entity-save saved" type="button" onClick={() => onToggle(item)} aria-label="取消收藏"><Heart size={17} fill="currentColor" /></button></article>)}</div> : <div className="empty-state"><Album /><strong>还没有收藏{title}</strong><span>{subtitle}</span></div>}</section>;
+  return <section className="entity-library content-enter"><header className="page-heading"><p>你的资料库</p><h1>{title}</h1><span>{items.length} 个收藏</span></header>{items.length ? <div className="library-entity-grid">{items.map((item) => <article className="library-entity-card" key={item.id}><ActionSurface className="library-entity-main" type="button" onClick={() => onOpen(item, kind)}><span className={`library-entity-art ${kind}`} style={{ backgroundImage: `url(${item.cover || rainIcon})` }} /><span><strong>{item.name}</strong><small>{item.artist ? <MetadataLink item={item} kind="artist" /> : `${item.tracks?.length || 0} 首歌曲`}</small></span></ActionSurface><button className="entity-save saved" type="button" onClick={() => onToggle(item)} aria-label="取消收藏"><Heart size={17} fill="currentColor" /></button></article>)}</div> : <div className="empty-state"><Album /><strong>还没有收藏{title}</strong><span>{subtitle}</span></div>}</section>;
 }
 
 function LocalMusicView({ tracks, onImport, onPlay, onPlayAll, onDelete, activeRequest }) {
@@ -1140,11 +1180,12 @@ function LocalMusicView({ tracks, onImport, onPlay, onPlayAll, onDelete, activeR
   </section>;
 }
 
-function PlaylistDetailView({ playlist, queueContextKey, onBack, onPlay, onPlayAll, activeRequest }) {
+function PlaylistDetailView({ playlist, queueContextKey, onBack, onPlay, onPlayAll, activeRequest, onRefresh, refreshing }) {
   return (
     <section className="playlists-view playlist-detail-view content-enter">
       <header className="entity-detail-heading">
-        <button className="entity-back" type="button" onClick={onBack}><ArrowLeft size={18} />返回我的歌单</button>
+
+        {['netease', 'qq'].includes(playlist.source) && <button className="secondary-button playlist-refresh" type="button" disabled={refreshing} onClick={() => onRefresh(playlist)}>{refreshing ? <LoaderCircle size={16} className="spin" /> : <RotateCcw size={16} />}{refreshing ? '正在刷新…' : '刷新歌单'}</button>}
       </header>
       <div className="entity-detail-hero playlist-detail-hero">
         <span className="playlist-detail-cover" style={{ backgroundImage: `url(${playlist.cover || rainIcon})` }} />
@@ -1155,19 +1196,21 @@ function PlaylistDetailView({ playlist, queueContextKey, onBack, onPlay, onPlayA
   );
 }
 
-function PlaylistsView({ playlists, onAdd, onCreatePlaylist, onPlay, onPlayAll, onRemove, activeRequest, loading }) {
+function PlaylistsView({ playlists, onAdd, onCreatePlaylist, onPlay, onPlayAll, onRemove, activeRequest, loading, onRefresh, refreshingPlaylist }) {
   const [url, setUrl] = useState('');
-  const [selectedKey, setSelectedKey] = useState('');
+  const navigation = useNavigation();
+  const selectedKey = navigation.route.playlistKey || '';
+  const setSelectedKey = (playlistKey) => navigation.push({ view: 'playlists', playlistKey });
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const selected = playlists.find((playlist) => `${playlist.source}:${playlist.id}:${playlist.url}` === selectedKey);
   const submit = async (event) => { event.preventDefault(); if (await onAdd(url)) setUrl(''); };
-  if (selected) return <PlaylistDetailView playlist={selected} queueContextKey={selectedKey} onBack={() => setSelectedKey('')} onPlay={onPlay} onPlayAll={onPlayAll} activeRequest={activeRequest} />;
+  if (selected) return <PlaylistDetailView playlist={selected} onRefresh={onRefresh} refreshing={refreshingPlaylist === selectedKey} queueContextKey={selectedKey} onBack={() => setSelectedKey('')} onPlay={onPlay} onPlayAll={onPlayAll} activeRequest={activeRequest} />;
   return (
     <section className="playlists-view content-enter">
       <header className="page-heading"><p>跨平台收藏</p><h1>我的歌单</h1><span>{playlists.length} 个歌单</span></header>
       <form className="playlist-import" onSubmit={submit}><input value={url} onChange={(event) => setUrl(event.target.value)} placeholder="粘贴网易云、QQ 音乐或酷狗歌单分享长链接" /><button className="primary-button" disabled={!url.trim() || loading} type="submit">{loading ? <LoaderCircle className="spin" size={16} /> : <Upload size={16} />}导入歌单</button></form>
-      <p className="playlist-note">支持网易云和 QQ 音乐歌单长链接；酷狗歌单暂时只保存分享链接。</p>
+      <p className="playlist-note">支持网易云和 QQ 音乐歌单长链接。</p>
       <div className="playlist-create">
         {creating ? (
           <><input value={newName} onChange={(event) => setNewName(event.target.value)} placeholder="输入歌单名称" autoFocus /><button className="primary-button" type="button" disabled={!newName.trim()} onClick={() => { onCreatePlaylist(newName); setNewName(''); setCreating(false); }}>创建</button><button className="secondary-button" type="button" onClick={() => { setCreating(false); setNewName(''); }}>取消</button></>
@@ -1185,20 +1228,21 @@ function PlaylistsView({ playlists, onAdd, onCreatePlaylist, onPlay, onPlayAll, 
   );
 }
 
-function LyricsView({ track, currentTime, duration, playing, onToggle, onPrevious, onNext, onClose, onSeek, quality, onQuality, qualityLoading, playMode, visible, liked, onToggleLike, onCyclePlayMode, playlists, onCreatePlaylist, onAddToPlaylist, volume, onVolume, queue, onPlayQueue }) {
+function LyricsView({ track, currentTime, duration, playing, onToggle, onPrevious, onNext, onClose, onSeek, quality, onQuality, qualityLoading, playMode, visible, liked, onToggleLike, onCyclePlayMode, playlists, onCreatePlaylist, onAddToPlaylist, volume, onVolume, queue, onPlayQueue, equalizerGains, onEqualizerChange, audioGraphRef }) {
   const lyrics = useMemo(() => parseLyrics(track.lyricRaw, track.translationRaw, track.romanRaw, track.wordLyricRaw), [track.lyricRaw, track.translationRaw, track.romanRaw, track.wordLyricRaw]);
   const activeIndex = lyrics.findLastIndex((line) => line.time <= currentTime + 0.04);
   const scrollRef = useRef(null);
   const manualScrollUntilRef = useRef(0);
   const [showTranslation, setShowTranslation] = useState(loadLyricsTranslationSetting);
-  const [showRoman, setShowRoman] = useState(true);
+  const [equalizerOpen, setEqualizerOpen] = useState(false);
+  const closeEqualizer = useCallback(() => setEqualizerOpen(false), []);
   const [playlistMenuOpen, setPlaylistMenuOpen] = useState(false);
   const [playlistStep, setPlaylistStep] = useState('menu');
   const [creatingPlaylist, setCreatingPlaylist] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const playlistRootRef = useRef(null);
   const hasTranslation = lyrics.some((line) => line.translation);
-  const hasRoman = lyrics.some((line) => line.roman);
+
   const onSeekRef = useRef(onSeek);
   onSeekRef.current = onSeek;
   const toggleTranslation = () => {
@@ -1222,11 +1266,10 @@ function LyricsView({ track, currentTime, duration, playing, onToggle, onPreviou
   }, [playlistMenuOpen]);
   const lyricList = useMemo(() => lyrics.map((line, index) => (
     <button key={`${line.time}-${index}`} className="lyric-line" data-active={index === activeIndex} onClick={() => onSeekRef.current(line.time)}>
-      {showRoman && line.roman && <span className="roman">{line.roman}</span>}
       <strong aria-label={line.text}>{line.text}</strong>
       {showTranslation && line.translation && <span>{line.translation}</span>}
     </button>
-  )), [lyrics, activeIndex, showTranslation, showRoman]);
+  )), [lyrics, activeIndex, showTranslation]);
 
   useEffect(() => {
     if (Date.now() < manualScrollUntilRef.current) return;
@@ -1240,18 +1283,19 @@ function LyricsView({ track, currentTime, duration, playing, onToggle, onPreviou
 
   return (
     <section className="lyrics-view" data-open={visible}>
+      {equalizerOpen && <Equalizer gains={equalizerGains} onChange={onEqualizerChange} onClose={closeEqualizer} />}
       <div className="lyrics-toolbar">
         <span className="lyrics-drag-zone" aria-hidden="true" />
         <div className="lyrics-options">
           <button className={`lyric-toggle ${showTranslation ? 'active' : ''}`} type="button" disabled={!hasTranslation} aria-pressed={showTranslation} onClick={toggleTranslation}>翻译</button>
-          <button className={`lyric-toggle ${showRoman ? 'active' : ''}`} type="button" disabled={!hasRoman} aria-pressed={showRoman} onClick={() => setShowRoman((state) => !state)}>音标</button>
+          <button className={`lyric-toggle ${equalizerGains.some((value) => value !== 0) ? 'active' : ''}`} type="button" aria-haspopup="dialog" aria-expanded={equalizerOpen} onClick={() => setEqualizerOpen(true)}>均衡器</button>
           <CustomSelect className="quality-select" label="音质" icon={<SlidersHorizontal size={15} />} value={quality} onChange={onQuality} disabled={qualityLoading || track.empty} options={qualityOptionsForTrack(track)} />
         </div>
       </div>
       <div className="lyrics-layout">
         <div className="art-column">
-          <div className="album-frame"><IconButton className="lyrics-close" label="收起歌词" onClick={onClose}><X size={19} /></IconButton><img src={track.cover || rainIcon} alt={`${track.album} 封面`} /></div>
-          <div className="track-heading"><div className="track-heading-copy"><h2>{track.title}</h2><p>{track.artist} · {track.album}</p></div><div className="track-actions"><div className="track-action-buttons"><label className="lyrics-volume"><Volume2 size={16} /><input aria-label="歌词页音量" type="range" min="0" max="1" step="0.01" value={volume} onChange={(event) => onVolume(Number(event.target.value))} /></label><IconButton className={`heart-button ${liked ? 'liked' : ''}`} label={liked ? '取消喜欢' : '加入喜欢的音乐'} aria-pressed={liked} onClick={onToggleLike}><Heart size={18} fill={liked ? 'currentColor' : 'none'} /></IconButton><div className="playlist-picker-root" ref={playlistRootRef}><IconButton label="更多" onClick={() => { setPlaylistMenuOpen((state) => !state); setPlaylistStep('menu'); }}><Ellipsis /></IconButton>{playlistMenuOpen && <div className="playlist-picker">{playlistStep === 'menu' ? <button type="button" onClick={() => setPlaylistStep('playlists')}>收藏至歌单</button> : <><button type="button" onClick={() => { setCreatingPlaylist(true); setNewPlaylistName(''); }}>新建歌单</button>{creatingPlaylist && <div className="playlist-picker-create"><input value={newPlaylistName} onChange={(event) => setNewPlaylistName(event.target.value)} placeholder="歌单名称" autoFocus /><button type="button" disabled={!newPlaylistName.trim()} onClick={() => { const playlist = onCreatePlaylist(newPlaylistName, track); if (playlist) { setNewPlaylistName(''); setCreatingPlaylist(false); setPlaylistMenuOpen(false); setPlaylistStep('menu'); } }}>创建</button></div>}{playlists.map((playlist) => <button type="button" key={playlist.id} onClick={() => { onAddToPlaylist(playlist, track); setPlaylistMenuOpen(false); setPlaylistStep('menu'); }}>{playlist.title}</button>)}<button className="playlist-picker-back" type="button" onClick={() => setPlaylistStep('menu')}>返回</button></>}</div>}</div></div><span className="play-mode-status">{PLAY_MODE_META[playMode].label}</span></div></div>
+          <div className="album-frame"><BeatAura graphRef={audioGraphRef} playing={playing} visible={visible} trackKey={`${track.source}:${track.id}`} /><IconButton className="lyrics-close" label="收起歌词" onClick={onClose}><X size={19} /></IconButton><img src={track.cover || rainIcon} alt={`${track.album} 封面`} /></div>
+          <div className="track-heading"><div className="track-heading-copy"><h2>{track.title}</h2><p><MetadataLink item={track} kind="artist" /> · <MetadataLink item={track} kind="album" /></p></div><div className="track-actions"><div className="track-action-buttons"><label className="lyrics-volume"><Volume2 size={16} /><input aria-label="歌词页音量" type="range" min="0" max="1" step="0.01" value={volume} onChange={(event) => onVolume(Number(event.target.value))} /></label><IconButton className={`heart-button ${liked ? 'liked' : ''}`} label={liked ? '取消喜欢' : '加入喜欢的音乐'} aria-pressed={liked} onClick={onToggleLike}><Heart size={18} fill={liked ? 'currentColor' : 'none'} /></IconButton><div className="playlist-picker-root" ref={playlistRootRef}><IconButton label="更多" onClick={() => { setPlaylistMenuOpen((state) => !state); setPlaylistStep('menu'); }}><Ellipsis /></IconButton>{playlistMenuOpen && <div className="playlist-picker">{playlistStep === 'menu' ? <button type="button" onClick={() => setPlaylistStep('playlists')}>收藏至歌单</button> : <><button type="button" onClick={() => { setCreatingPlaylist(true); setNewPlaylistName(''); }}>新建歌单</button>{creatingPlaylist && <div className="playlist-picker-create"><input value={newPlaylistName} onChange={(event) => setNewPlaylistName(event.target.value)} placeholder="歌单名称" autoFocus /><button type="button" disabled={!newPlaylistName.trim()} onClick={() => { const playlist = onCreatePlaylist(newPlaylistName, track); if (playlist) { setNewPlaylistName(''); setCreatingPlaylist(false); setPlaylistMenuOpen(false); setPlaylistStep('menu'); } }}>创建</button></div>}{playlists.map((playlist) => <button type="button" key={playlist.id} onClick={() => { onAddToPlaylist(playlist, track); setPlaylistMenuOpen(false); setPlaylistStep('menu'); }}>{playlist.title}</button>)}<button className="playlist-picker-back" type="button" onClick={() => setPlaylistStep('menu')}>返回</button></>}</div>}</div></div><span className="play-mode-status">{PLAY_MODE_META[playMode].label}</span></div></div>
           <div className="lyrics-controls">
             <div className="timeline">
               <div className="timeline-track"><span style={{ transform: `scaleX(${duration ? currentTime / duration : 0})` }} /></div>
@@ -1294,11 +1338,11 @@ function QueueMenu({ tracks, onPlay }) {
           <div className="recent-popover-title"><span>当前列表</span><small>{tracks.length} 首</small></div>
           <div className="recent-popover-list">
             {tracks.length ? tracks.map((item) => (
-              <button key={trackKey(item)} type="button" tabIndex={open ? 0 : -1} onClick={() => { onPlay(item); setOpen(false); }}>
+              <ActionSurface key={trackKey(item)} tabIndex={open ? 0 : -1} onClick={() => { onPlay(item); setOpen(false); }}>
                 <span className="recent-art" style={{ backgroundImage: `url(${item.cover || rainIcon})` }} />
-                <span><strong>{item.title}</strong><small>{item.artist}</small></span>
+                <span><strong>{item.title}</strong><small><MetadataLink item={item} kind="artist" /></small></span>
                 <Play size={13} fill="currentColor" />
-              </button>
+              </ActionSurface>
             )) : <div className="recent-empty">当前列表还没有歌曲</div>}
           </div>
       </div>
@@ -1309,7 +1353,7 @@ function QueueMenu({ tracks, onPlay }) {
 function MiniPlayer({ track, playing, currentTime, duration, onToggle, onPrevious, onNext, onOpen, onSeek, volume, onVolume, liked, onToggleLike, queue, onPlayQueue, playMode, onCyclePlayMode }) {
   return (
     <footer className="mini-player">
-      <button className="mini-track" onClick={onOpen}><span className="mini-art"><img src={track.cover || rainIcon} alt="" /></span><span><strong>{track.title}</strong><small>{track.artist}</small></span></button>
+      <ActionSurface className="mini-track" onClick={onOpen}><span className="mini-art"><img src={track.cover || rainIcon} alt="" /></span><span><strong>{track.title}</strong><small><MetadataLink item={track} kind="artist" /></small></span></ActionSurface>
       <div className="mini-center">
         <div className="mini-controls"><IconButton className={`heart-button ${liked ? 'liked' : ''}`} label={liked ? '取消喜欢' : '加入喜欢的音乐'} aria-pressed={liked} onClick={onToggleLike}><Heart size={18} fill={liked ? 'currentColor' : 'none'} /></IconButton><IconButton label="上一首" onClick={onPrevious}><SkipBack size={17} fill="currentColor" /></IconButton><button className="mini-play" onClick={onToggle} aria-label={playing ? '暂停' : '播放'}>{playing ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}</button><IconButton label="下一首" onClick={onNext}><SkipForward size={17} fill="currentColor" /></IconButton><IconButton className="mode-active" label={PLAY_MODE_META[playMode].label} aria-pressed="true" onClick={onCyclePlayMode}>{playMode === 'repeat' ? <Repeat1 size={18} /> : playMode === 'shuffle' ? <Shuffle size={18} /> : <ListOrdered size={18} />}</IconButton></div>
         <div className="mini-progress"><span>{formatTime(currentTime)}</span><div className="mini-scrubber"><div><i style={{ transform: `scaleX(${duration ? currentTime / duration : 0})` }} /></div><input aria-label="播放进度" type="range" min="0" max={duration || 1} step="0.1" value={Math.min(currentTime, duration || 1)} disabled={track.empty || !duration} onChange={(event) => onSeek(Number(event.target.value))} /><span className="scrubber-thumb" style={{ left: `${Math.max(0, Math.min(100, duration ? (currentTime / duration) * 100 : 0))}%` }} /></div><span>-{formatTime(Math.max(0, duration - currentTime))}</span></div>
@@ -1320,12 +1364,16 @@ function MiniPlayer({ track, playing, currentTime, duration, onToggle, onPreviou
 }
 
 function App() {
-  const [view, setView] = useState('library');
+  const navigation = usePageHistory();
+  const view = navigation.route.view;
+  const setView = (nextView) => { if (nextView !== view || navigation.route.playlistKey || navigation.route.entityDetail) navigation.push({ view: nextView }); };
   const [lyricsMounted, setLyricsMounted] = useState(false);
   const [lyricsVisible, setLyricsVisible] = useState(false);
   const [current, setCurrent] = useState(EMPTY_TRACK);
   const [queue, setQueue] = useState([]);
   const [queueContext, setQueueContext] = useState('');
+  const [equalizerGains, setEqualizerGains] = useState(loadEqualizer);
+  const audioGraphRef = useRef(null);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -1349,6 +1397,9 @@ function App() {
   const [savedArtists, setSavedArtists] = useState(() => loadCollection('rain_saved_artists'));
   const [savedAlbums, setSavedAlbums] = useState(() => loadCollection('rain_saved_albums'));
   const [entityRequest, setEntityRequest] = useState(null);
+  const [metadataSearch, setMetadataSearch] = useState(null);
+  const [refreshingPlaylist, setRefreshingPlaylist] = useState('');
+  const playlistRefreshRef = useRef(new Set());
   const [localTracks, setLocalTracks] = useState(() => loadCollection('rain_local_tracks'));
   const [playlists, setPlaylists] = useState(() => loadCollection('rain_playlists'));
   const [playlistLoading, setPlaylistLoading] = useState(false);
@@ -1498,9 +1549,19 @@ function App() {
     if (!audio || current.empty) return;
     if (loadedAudioUrlRef.current === (current.audioUrl || '')) return;
     loadedAudioUrlRef.current = current.audioUrl || '';
-    audio.src = current.audioUrl || '';
-    audio.load();
-    if (playing && current.audioUrl) audio.play().catch(() => setPlaying(false));
+    let cancelled = false;
+    audio.pause();
+    void preparePlaybackUrl(current.audioUrl || '').then((url) => {
+      if (cancelled) return;
+      if (!url) throw new Error('无法打开音频');
+      audio.src = url;
+      audio.load();
+      if (playing) {
+        void ensureAudioGraph()?.catch(() => {});
+        return audio.play();
+      }
+    }).catch(() => { if (!cancelled) { setPlaying(false); setToast({ message: '无法播放音频，请重试或切换音质', type: 'error' }); } });
+    return () => { cancelled = true; };
   }, [current.audioUrl, current.empty]);
   useEffect(() => {
     if (!playing || current.empty) return undefined;
@@ -1518,6 +1579,23 @@ function App() {
   }, [playing, current.empty]);
   useEffect(() => { if (audioRef.current) audioRef.current.volume = volume; }, [volume]);
 
+  useEffect(() => {
+    localStorage.setItem(EQ_STORAGE_KEY, JSON.stringify(equalizerGains));
+    if (audioGraphRef.current) applyEqualizer(audioGraphRef.current, equalizerGains);
+  }, [equalizerGains]);
+  const ensureAudioGraph = () => {
+    if (!audioGraphRef.current && audioRef.current) {
+      const context = new AudioContext();
+      audioGraphRef.current = createEqualizerGraph(context, audioRef.current);
+      applyEqualizer(audioGraphRef.current, equalizerGains);
+    }
+    return audioGraphRef.current?.context.resume();
+  };
+  const changeEqualizer = (index, value) => {
+    void ensureAudioGraph()?.catch(() => notify('无法启动均衡器，请重新播放歌曲', 'error'));
+    setEqualizerGains((values) => index === null ? EQ_FREQUENCIES.map(() => 0) : values.map((gain, band) => band === index ? value : gain));
+  };
+
   const notify = (message, type = 'neutral') => setToast({ message, type });
   const showVolumeFeedback = (nextVolume) => {
     if (volumeFeedbackTimer.current) clearTimeout(volumeFeedbackTimer.current);
@@ -1534,6 +1612,11 @@ function App() {
     lyricCloseTimer.current = setTimeout(() => setLyricsMounted(false), 230);
   };
   const navigate = (nextView) => { setView(nextView); closeLyrics(); };
+  const searchMetadata = (query, source, kind) => {
+    setEntityRequest(null);
+    setMetadataSearch({ query, source: ONLINE_SOURCES.includes(source) ? source : 'netease', kind, requestId: Date.now() });
+    navigate('search');
+  };
   const changeCloseAction = async (nextAction) => {
     const result = await saveCloseAction(nextAction);
     if (!result?.ok) return notify('无法保存关闭窗口设置', 'error');
@@ -1942,6 +2025,32 @@ function App() {
     notify(`已用一次调用导入 ${playlist.tracks.length} 首歌曲`, 'success');
     return true;
   };
+  const refreshPlaylist = async (playlist) => {
+    const key = `${playlist.source}:${playlist.id}:${playlist.url}`;
+    if (playlistRefreshRef.current.has(key)) return;
+    if (playlist.source === 'netease' && !hasApiKey) { needKey(); return; }
+    playlistRefreshRef.current.add(key);
+    setRefreshingPlaylist(key);
+    try {
+      let fresh;
+      if (playlist.source === 'qq') {
+        const result = await getQQPlaylist(playlist.id);
+        if (!result.ok) throw new Error(result.message || 'QQ 歌单刷新失败');
+        fresh = result.playlist;
+      } else if (playlist.source === 'netease') {
+        const result = await apiRequest('/api/163_playlist', { id: playlist.id });
+        if (!result.ok) throw new Error(result.message || '歌单刷新失败');
+        const root = result.data?.data?.playlist ?? result.data?.playlist ?? result.data?.data ?? result.data?.result ?? result.data;
+        if (!Array.isArray(root?.tracks ?? root?.songs ?? root?.list)) throw new Error('歌单返回的数据不完整，已保留原歌单');
+        fresh = normalizePlaylist(result.data, 'netease');
+      } else return;
+      if (!fresh || !Array.isArray(fresh.tracks)) throw new Error('歌单返回的数据不完整，请稍后重试');
+      setPlaylists((items) => items.map((entry) => `${entry.source}:${entry.id}:${entry.url}` === key
+        ? { ...entry, ...fresh, id: entry.id, source: entry.source, url: entry.url, refreshedAt: Date.now() } : entry));
+      notify(`歌单已刷新 · ${fresh.tracks.length} 首歌曲`, 'success');
+    } catch (error) { notify(error.message || '刷新失败，已保留原歌单', 'error'); }
+    finally { playlistRefreshRef.current.delete(key); setRefreshingPlaylist((value) => value === key ? '' : value); }
+  };
   const removePlaylist = (playlist) => {
     setPlaylists((items) => items.filter((item) => !(item.source === playlist.source && item.id === playlist.id && item.url === playlist.url)));
     notify('已删除歌单', 'neutral');
@@ -2032,14 +2141,17 @@ function App() {
     : view === 'albums' ? <EntityLibraryView title="专辑" subtitle="在搜索的专辑分类中点击爱心收藏。" items={savedAlbums} kind="album" onToggle={toggleEntity(setSavedAlbums)} onOpen={openSavedEntity} />
     : view === 'artists' ? <EntityLibraryView title="歌手" subtitle="在搜索的歌手分类中点击爱心收藏。" items={savedArtists} kind="artist" onToggle={toggleEntity(setSavedArtists)} onOpen={openSavedEntity} />
     : view === 'local' ? <LocalMusicView tracks={localTracks} onImport={importLocal} onPlay={playSavedTrack} onPlayAll={playAll} onDelete={deleteLocalTracks} activeRequest={activeRequest} />
-    : view === 'playlists' ? <PlaylistsView playlists={playlists} onAdd={addPlaylist} onCreatePlaylist={createPlaylist} onPlay={playSavedTrack} onPlayAll={playAll} onRemove={removePlaylist} activeRequest={activeRequest} loading={playlistLoading} />
+    : view === 'playlists' ? <PlaylistsView playlists={playlists} onAdd={addPlaylist} onCreatePlaylist={createPlaylist} onPlay={playSavedTrack} onPlayAll={playAll} onRemove={removePlaylist} activeRequest={activeRequest} loading={playlistLoading} onRefresh={refreshPlaylist} refreshingPlaylist={refreshingPlaylist} />
     : <LibraryView current={current} onOpenDaily={() => navigate('daily')} onOpenRecent={() => navigate('recent')} onImport={importLocal} avatar={avatar} userName={quota.userName} stats={listeningStats} />;
 
   return (
+    <NavigationContext.Provider value={navigation}>
+    <PlaybackUiContext.Provider value={{ current, onSearch: searchMetadata }}>
     <div className={`app-shell ${lyricsMounted ? 'lyrics-mode' : ''}`} style={rootStyle}>
       <div className="color-atmosphere" aria-hidden="true"><i /><i /><i /><i /></div>
       <div className="window-drag" aria-hidden="true" />
-      <WindowControls />
+      <LiquidWindowEffects />
+      <PageNavigation onTravel={closeLyrics} />
       <aside className="sidebar">
         <div className="brand"><span className="brand-mark rain-brand-mark"><img src={rainIcon} alt="" /></span><span>Rain</span></div>
         <nav>
@@ -2056,18 +2168,21 @@ function App() {
         <button className={`settings-link ${view === 'settings' && !lyricsMounted ? 'active' : ''}`} onClick={() => navigate('settings')}><Settings size={18} />设置<span className={`connection-dot ${hasApiKey ? 'on' : ''}`} /></button>
       </aside>
       <main className="main-panel">
-        <div className="base-view search-keeper" hidden={view !== 'search'}><SearchView active={view === 'search'} hasApiKey={hasApiKey} onNeedKey={needKey} onSelect={selectSearchResult} onPlayAll={playAll} activeRequest={activeRequest} quota={quota} onOpenAccount={openAccount} savedArtists={savedArtists} savedAlbums={savedAlbums} onSaveArtist={toggleEntity(setSavedArtists)} onSaveAlbum={toggleEntity(setSavedAlbums)} entityRequest={entityRequest} liked={liked} onToggleLike={toggleLike} /></div>
+        <div className="base-view search-keeper" hidden={view !== 'search'}><SearchView active={view === 'search'} hasApiKey={hasApiKey} onNeedKey={needKey} onSelect={selectSearchResult} onPlayAll={playAll} activeRequest={activeRequest} quota={quota} onOpenAccount={openAccount} savedArtists={savedArtists} savedAlbums={savedAlbums} onSaveArtist={toggleEntity(setSavedArtists)} onSaveAlbum={toggleEntity(setSavedAlbums)} entityRequest={entityRequest} metadataSearch={metadataSearch} liked={liked} onToggleLike={toggleLike} /></div>
         <div className="base-view" hidden={view === 'search'}>{nonSearchView}</div>
       </main>
-      {lyricsMounted && <LyricsView visible={lyricsVisible} track={current} currentTime={currentTime} duration={duration} playing={playing} onToggle={togglePlay} onPrevious={() => playAdjacent(-1)} onNext={() => playAdjacent(1)} onClose={closeLyrics} onSeek={seek} quality={quality} onQuality={changeQuality} qualityLoading={qualityLoading} playMode={playMode} liked={!current.empty && liked.some((track) => trackKey(track) === trackKey(current))} onToggleLike={() => toggleLike(current)} onCyclePlayMode={cyclePlayMode} playlists={playlists} onCreatePlaylist={createPlaylist} onAddToPlaylist={addTrackToPlaylist} volume={volume} onVolume={setVolume} queue={queue} onPlayQueue={playQueueItem} />}
+      {lyricsMounted && <LyricsView visible={lyricsVisible} track={current} currentTime={currentTime} duration={duration} playing={playing} onToggle={togglePlay} onPrevious={() => playAdjacent(-1)} onNext={() => playAdjacent(1)} onClose={closeLyrics} onSeek={seek} quality={quality} onQuality={changeQuality} qualityLoading={qualityLoading} playMode={playMode} liked={!current.empty && liked.some((track) => trackKey(track) === trackKey(current))} onToggleLike={() => toggleLike(current)} onCyclePlayMode={cyclePlayMode} playlists={playlists} onCreatePlaylist={createPlaylist} onAddToPlaylist={addTrackToPlaylist} volume={volume} onVolume={setVolume} queue={queue} onPlayQueue={playQueueItem} equalizerGains={equalizerGains} onEqualizerChange={changeEqualizer} audioGraphRef={audioGraphRef} />}
       {!lyricsMounted && <MiniPlayer track={current} playing={playing} currentTime={currentTime} duration={duration} onToggle={togglePlay} onPrevious={() => playAdjacent(-1)} onNext={() => playAdjacent(1)} onOpen={openLyrics} onSeek={seek} volume={volume} onVolume={setVolume} liked={!current.empty && liked.some((track) => trackKey(track) === trackKey(current))} onToggleLike={() => toggleLike(current)} queue={queue} onPlayQueue={playQueueItem} playMode={playMode} onCyclePlayMode={cyclePlayMode} />}
-      <audio ref={audioRef} onTimeUpdate={handleAudioTimeUpdate} onLoadedMetadata={handleLoadedMetadata} onEnded={handleEnded} />
+      <audio ref={audioRef} crossOrigin="anonymous" onPlay={() => { void ensureAudioGraph()?.catch(() => setPlaying(false)); }} onTimeUpdate={handleAudioTimeUpdate} onLoadedMetadata={handleLoadedMetadata} onEnded={handleEnded} />
       {volumeFeedback !== null && <div className={`volume-feedback ${lyricsMounted ? 'in-lyrics' : ''}`} role="status" aria-live="polite"><Volume2 size={17} /><div><span>音量</span><strong>{volumeFeedback}%</strong><i><b style={{ transform: `scaleX(${volumeFeedback / 100})` }} /></i></div></div>}
       {toast && <div className={`toast ${toast.type}`} role="status"><span>{toast.type === 'success' ? <Check size={16} /> : toast.type === 'error' ? '!' : <Sparkles size={16} />}</span>{toast.message}</div>}
       {closeDialogOpen && <CloseBehaviorDialog onChoose={chooseCloseAction} onCancel={cancelClose} />}
       {updateDialogOpen && updateInfo && <UpdateDialog info={updateInfo} downloading={updateDownloading} progress={updateProgress} onClose={() => setUpdateDialogOpen(false)} onUpdate={handleUpdateNow} />}
       {releaseAnnouncement && <ReleaseAnnouncementDialog version={releaseAnnouncement.version} onClose={() => { localStorage.setItem('rain_seen_release_announcement', releaseAnnouncement.version); setReleaseAnnouncement(null); }} />}
+      <WindowControls />
     </div>
+    </PlaybackUiContext.Provider>
+    </NavigationContext.Provider>
   );
 }
 

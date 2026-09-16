@@ -1,0 +1,58 @@
+html[data-liquid="on"], html[data-liquid="on"] body, html[data-liquid="on"] #root { background: transparent; }
+html[data-liquid="on"] .app-shell { background: rgba(15, 20, 29, var(--window-tint)); border: 1px solid #ffffff38; border-radius: 12px; }
+html[data-liquid="on"] .color-atmosphere { display: none; }
+html[data-liquid="on"] :is(.main-panel, .base-view, .base-view > section) { background: transparent; }
+/* Lyrics stays opaque relative to other app pages: those siblings are hidden already. */
+html[data-liquid="on"] .lyrics-view { background: transparent; }
+html[data-liquid="on"] :is(.sidebar, .mini-player, .window-controls, .page-navigation, .liquid-preview-pane, .liquid-settings) {
+  background: radial-gradient(ellipse at var(--shine-x, 20%) var(--shine-y, 0%), rgba(230, 245, 255, calc(var(--liquid-gloss) * .17)), transparent 70%), linear-gradient(135deg, #ffffff18, #ffffff03 45%, #b9d6ff0c), rgba(29, 38, 50, var(--pane-tint));
+  border-color: rgba(225, 238, 255, calc(.1 + var(--liquid-gloss) * .3)); box-shadow: inset 0 1px 0 rgba(255,255,255,calc(.08 + var(--liquid-gloss) * .6)), inset 1px 0 0 #e5f2ff30, inset -1px -1px 0 #9cbcf13d, 0 10px 28px #0003; backdrop-filter: blur(18px) saturate(155%);
+}
+html[data-liquid="on"] .sidebar { border-radius: 11px 0 20px 0; }
+html[data-liquid="on"] .mini-player { margin: 3px 9px 8px; border: 1px solid #ffffff45; border-radius: 22px; }
+html[data-liquid="on"] :is(.select-menu, .recent-popover, .profile-popover, .playlist-picker, .eq-panel, .close-dialog, .avatar-crop-dialog, .toast, .volume-feedback) { background: linear-gradient(145deg, #ffffff1c, #ffffff03 38%), #18202bd6; border-color: #dfecff55; box-shadow: inset 0 1px 0 #ffffff60, 0 24px 60px #0007; backdrop-filter: blur(26px) saturate(160%); }
+html[data-liquid="on"] :is(.settings-card, .quality-preference, .shortcut-preference, .close-preference, .search-box, .playlist-import, .import-card) { background: rgba(25, 32, 44, var(--pane-tint)); border-color: #e6f0ff30; }
+html[data-liquid="on"] :is(.lyric-toggle, .select-trigger, .secondary-button, .lyrics-volume) { background: linear-gradient(145deg, #ffffff26, #ffffff08), #1f293b70; border-color: #e4f2ff45; box-shadow: inset 0 1px 0 #ffffff33; }
+html[data-liquid="on"] :is(.page-heading, .section-title, .result-title, .result-album, .track-heading, .lyric-line, .sidebar, .mini-player, .entity-detail-hero) { text-shadow: 0 1px 3px #000e, 0 0 8px #0008; }
+html[data-liquid="on"] .lyric-line { color: #dce1eab0; }
+html[data-liquid="on"] .lyric-line[data-active="true"] { color: white; }
+html[data-liquid="on"] .window-controls { background-color: #1c253bbb; }
+html[data-liquid="on"][data-liquid-clear="true"] .app-shell { background: transparent; }
+/* At maximum transparency, the background of large structural surfaces is clear too. */
+html[data-liquid="on"][data-liquid-clear="true"] :is(.sidebar, .mini-player) { background: transparent; backdrop-filter: none; }
+.liquid-settings { max-width: 760px; margin: 0 auto 26px; padding: 24px; border: 1px solid #ffffff30; border-radius: 24px; background: #20242d; }
+.liquid-settings header { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
+.liquid-mark { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 14px; background: linear-gradient(135deg, #d9efff50, #90b7ff16); box-shadow: inset 0 1px 0 #ffffff70; }
+.liquid-settings header small { color: #d0ddf0; font-size: 9px; letter-spacing: .12em; }
+.liquid-settings h2 { margin: 5px 0 0; font-size: 21px; letter-spacing: -.02em; }
+.liquid-toggle { width: 46px; height: 28px; padding: 3px; border: 1px solid #ffffff40; border-radius: 99px; margin-left: auto; background: #505a67; cursor: pointer; flex-shrink: 0; }
+.liquid-toggle i { display: block; width: 20px; height: 20px; border-radius: 50%; background: white; box-shadow: 0 2px 7px #0005; transition: transform 140ms var(--ease-out); }
+.liquid-toggle[aria-checked="true"] { background: #428f80; }
+.liquid-toggle[aria-checked="true"] i { transform: translateX(18px); }
+.liquid-preview { position: relative; isolation: isolate; overflow: hidden; padding: 45px 28px; border-radius: 18px; border: 1px solid #ffffff30; }
+.liquid-preview-scene { position: absolute; inset: 0; z-index: -1; background: radial-gradient(ellipse at 5% 85%, #629ec8, transparent 60%), radial-gradient(ellipse at 95% 10%, #cf9cab, transparent 65%), repeating-linear-gradient(135deg, #8196a8 0 30px, #b3c2cc 30px 60px); }
+.liquid-preview-scene b { font-size: 82px; letter-spacing: -.08em; color: #ffffff55; padding-left: 10px; }
+.liquid-preview-pane { display: flex; align-items: center; gap: 18px; padding: 24px; border: 1px solid #ffffff66; border-radius: 24px; background: #263140b0; box-shadow: 0 14px 30px #0004; }
+.liquid-preview-pane div { flex: 1; min-width: 0; }
+.liquid-preview-pane strong { display: block; font-size: 17px; }
+.liquid-preview-pane span { display: block; margin-top: 6px; font-size: 11px; color: #d7e3f5; }
+.liquid-preview > small { position: absolute; bottom: 9px; right: 12px; color: #fff; text-shadow: 0 1px 4px #000; font-size: 10px; }
+.liquid-range { margin-top: 24px; }
+.liquid-range label { display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: 650; }
+.liquid-range output { font-variant-numeric: tabular-nums; }
+.liquid-range input { display: block; width: 100%; appearance: none; height: 24px; margin: 10px 0 0; background: transparent; cursor: pointer; touch-action: none; }
+.liquid-range input::-webkit-slider-runnable-track { height: 5px; border-radius: 9px; background: linear-gradient(to right, #d8eaff var(--range-value), #ffffff30 var(--range-value)); }
+.liquid-range input::-webkit-slider-thumb { appearance: none; width: 18px; height: 18px; margin-top: -6.5px; border-radius: 50%; border: 1px solid #f3f7ff; background: white; box-shadow: 0 2px 8px #0006; }
+.liquid-range input:disabled { opacity: .4; cursor: default; }
+.liquid-scale { display: flex; justify-content: space-between; font-size: 10px; color: #c2cede; }
+.liquid-frost { display: flex; align-items: flex-start; gap: 9px; margin-top: 22px; font-size: 12px; }
+.liquid-frost small { display: block; margin-top: 5px; font-size: 10px; line-height: 1.6; color: #c2cede; }
+.liquid-settings p { margin: 18px 0 0; font-size: 11px; color: #d0d8e4; line-height: 1.7; }
+.liquid-settings footer { display: flex; justify-content: space-between; gap: 12px; margin-top: 20px; }
+.liquid-accessibility { display: none; }
+@media (prefers-reduced-motion: reduce) { .liquid-toggle i { transition: none; } }
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  html[data-liquid="on"] .app-shell, html[data-liquid="on"][data-liquid-clear="true"] .app-shell { background: #151922; }
+  html[data-liquid="on"] :is(.sidebar, .mini-player, .window-controls, .page-navigation, .liquid-settings, .liquid-preview-pane) { background: #242b36 !important; backdrop-filter: none !important; }
+  .liquid-accessibility { display: block; }
+}
